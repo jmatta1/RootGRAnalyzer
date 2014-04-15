@@ -55,12 +55,18 @@ public:
 	void openBigFile();
 	void makeAuxFile();
 	void openAuxFile();
+	void makeFriendFile();
+	void openFriendFile();
 	
 	//cut operations
 	void getPIDCuts();
 	void showPIDCut();
 	void getBGCuts();
 	void showBGCut();
+
+	//shape operations
+	void getFirstOrdShapes();
+	void showFirstOrdShapes();
 
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -70,6 +76,7 @@ public:
 	//overall control operations
 	void makeTreeFileActive(){mainFile->cd();}
 	void makeAuxFileActive(){auxFile->cd();}
+	void makeFriendFileActive(frFile->cd();}
 	void resetToStart();
 	void exitApp();
 	
@@ -115,6 +122,7 @@ private:
 	int numRuns;
 	TFile* mainFile;
 	TFile* auxFile;
+	TFile* frFile;
 };
 
 MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
@@ -123,6 +131,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	numRuns=0;
 	mainFile=NULL;
 	auxFile=NULL;
+	frFile=NULL;
 	dispNum = 0;
 	dispFunc = None;
 
@@ -168,6 +177,16 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	opAuxFile->Connect("Clicked()","MainWindow",this,"openAuxFile()");
 	fileFrame->AddFrame(opAuxFile, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
+	//Create friend file button
+	TGTextButton *createFrFile = new TGTextButton(fileFrame,"Make Friend Tree File");
+	createFrFile->Connect("Clicked()","MainWindow",this,"makeFriendFile()");
+	fileFrame->AddFrame(createFrFile, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	
+	//Open friend file button
+	TGTextButton *opFrFile = new TGTextButton(fileFrame,"Open Friend Tree File");
+	opFrFile->Connect("Clicked()","MainWindow",this,"openFriendFile()");
+	fileFrame->AddFrame(opFrFile, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	
 	//add the file frame to the overall frame
 	overallFrame->AddFrame(fileFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
 	
@@ -175,7 +194,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	** Cut operations buttons
 	******************************************/
 	TGVerticalFrame *cutFrame = new TGVerticalFrame(overallFrame, width, height);
-	TGLabel* cutLabel = new TGLabel(cutFrame, "Cut Operations");
+	TGLabel* cutLabel = new TGLabel(cutFrame, "Cut and Shape Operations");
 	cutFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	//Get PIDs button
 	TGTextButton *getPIDs = new TGTextButton(cutFrame,"Get PID Cut(s)");
@@ -197,8 +216,23 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	dispBG->Connect("Clicked()","MainWindow",this,"showBGCut()");
 	cutFrame->AddFrame(dispBG, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
+	
+	/******************************************
+	** Shape operations buttons
+	******************************************/
+	//Get shapes button
+	TGTextButton *getShapesBut = new TGTextButton(cutFrame,"Get 1st Order Shapes(s)");
+	getShapesBut->Connect("Clicked()","MainWindow",this,"getFirstOrdShapes()");
+	cutFrame->AddFrame(getShapesBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	
+	//display shapes button
+	TGTextButton *showShapesBut = new TGTextButton(cutFrame,"Show 1st Order Shapes(s)");
+	showShapesBut->Connect("Clicked()","MainWindow",this,"showFirstOrdShapes()");
+	cutFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	
 	//add the cut frame to the overall frame
 	overallFrame->AddFrame(cutFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	
 	
 	//add the overall frame to the full frame	
 	fullFrame->AddFrame(overallFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
@@ -208,10 +242,12 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	/******************************************
 	** Sequential Display buttons
 	******************************************/
-	TGLabel* auxLabel = new TGLabel(fullFrame, "Sequential Display Buttons");
-	fullFrame->AddFrame(auxLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	TGHorizontalFrame *extraFrame = new TGHorizontalFrame(fullFrame, width, height);
+	TGVerticalFrame *dispFrame = new TGVerticalFrame(extraFrame, width, height);
+	TGLabel* auxLabel = new TGLabel(dispFrame, "Sequential Display Buttons");
+	dispFrame->AddFrame(auxLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
-	TGHorizontalFrame *auxButtonsFrame = new TGHorizontalFrame(fullFrame, width, height);
+	TGHorizontalFrame *auxButtonsFrame = new TGHorizontalFrame(dispFrame, width, height);
 	//show previous spectrum
 	TGTextButton *prevSpec = new TGTextButton(auxButtonsFrame,"Prev Spec");
 	prevSpec->Connect("Clicked()","MainWindow",this,"prevSeqSpec()");
@@ -225,8 +261,29 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	endSpec->Connect("Clicked()","MainWindow",this,"endSeqSpec()");
 	auxButtonsFrame->AddFrame(endSpec, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 
-	fullFrame->AddFrame(auxButtonsFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	dispFrame->AddFrame(auxButtonsFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	extraFrame->AddFrame(dispFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
 	
+	/******************************************
+	** Overall Control buttons
+	******************************************/
+	TGVerticalFrame *ctrlFrame = new TGVerticalFrame(extraFrame, width, height);
+	TGLabel* fancyLabel = new TGLabel(ctrlFrame, "Overall Control");
+	ctrlFrame->AddFrame(fancyLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	TGHorizontalFrame *overallControlFrame = new TGHorizontalFrame(ctrlFrame, width, height);
+	//reset button
+	TGTextButton *resBut = new TGTextButton(overallControlFrame,"Reset Setup");
+	resBut->Connect("Clicked()","MainWindow",this,"resetToStart()");
+	overallControlFrame->AddFrame(resBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	//Kill application button
+	TGTextButton *exBut = new TGTextButton(overallControlFrame,"Exit");
+	exBut->Connect("Clicked()","MainWindow",this,"exitApp()");
+	overallControlFrame->AddFrame(exBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	
+	ctrlFrame->AddFrame(overallControlFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	extraFrame->AddFrame(ctrlFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	
+	fullFrame->AddFrame(extraFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
 	
 	/******************************************
 	** File Control buttons
@@ -238,30 +295,16 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	TGTextButton *treeFocusBut = new TGTextButton(fileControlFrame,"Activate Tree File");
 	treeFocusBut->Connect("Clicked()","MainWindow",this,"makeTreeFileActive()");
 	fileControlFrame->AddFrame(treeFocusBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
-	//make tree file the current dir
+	//make aux file the current dir
 	TGTextButton *auxFocusBut = new TGTextButton(fileControlFrame,"Activate Aux File");
 	auxFocusBut->Connect("Clicked()","MainWindow",this,"makeAuxFileActive()");
 	fileControlFrame->AddFrame(auxFocusBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	//make friend file the current dir
+	TGTextButton *frFocusBut = new TGTextButton(fileControlFrame,"Activate Friend File");
+	frFocusBut->Connect("Clicked()","MainWindow",this,"makeFriendFileActive()");
+	fileControlFrame->AddFrame(frFocusBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
 	fullFrame->AddFrame(fileControlFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
-	
-	
-	/******************************************
-	** Overall Control buttons
-	******************************************/
-	TGLabel* fancyLabel = new TGLabel(fullFrame, "Overall Control");
-	fullFrame->AddFrame(fancyLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
-	TGHorizontalFrame *overallControlFrame = new TGHorizontalFrame(fullFrame, width, height);
-	//reset button
-	TGTextButton *resBut = new TGTextButton(overallControlFrame,"Reset Setup");
-	resBut->Connect("Clicked()","MainWindow",this,"resetToStart()");
-	overallControlFrame->AddFrame(resBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
-	//Kill application button
-	TGTextButton *exBut = new TGTextButton(overallControlFrame,"Exit");
-	exBut->Connect("Clicked()","MainWindow",this,"exitApp()");
-	overallControlFrame->AddFrame(exBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
-	
-	fullFrame->AddFrame(overallControlFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
 	
 	//add the full frame to the window
 	menu->AddFrame(fullFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
@@ -298,6 +341,11 @@ MainWindow::~MainWindow()
 	{
 		delete mainFile;
 		mainFile = NULL;
+	}
+	if(frFile != NULL)
+	{
+		delete frFile;
+		frFile = NULL;
 	}
 }
 
@@ -468,7 +516,7 @@ void MainWindow::openBigFile()
 {
 	if ( runs == NULL )
 	{
-		cout<<"\nLoadRun Data first"<<endl;
+		cout<<"\nLoad Run Data first"<<endl;
 		return;
 	}
 	if (mainFile != NULL)
@@ -509,7 +557,7 @@ void MainWindow::makeAuxFile()
 {
 	if ( runs == NULL )
 	{
-		cout<<"\nLoadRun Data first"<<endl;
+		cout<<"\nLoad Run Data first"<<endl;
 		return;
 	}
 	else if ( mainFile == NULL )
@@ -554,7 +602,7 @@ void MainWindow::openAuxFile()
 {
 	if ( runs == NULL )
 	{
-		cout<<"\nLoadRun Data first"<<endl;
+		cout<<"\nLoad Run Data first"<<endl;
 		return;
 	}
 	else if ( mainFile == NULL )
@@ -595,6 +643,107 @@ void MainWindow::openAuxFile()
 	cout<<"\nAux File Opened"<<endl;
 }
 
+
+void MainWindow::makeFriendFile()
+{
+	if ( runs == NULL )
+	{
+		cout<<"\nLoad Run Data first"<<endl;
+		return;
+	}
+	else if ( mainFile == NULL )
+	{
+		cout<<"\nLoad/create combined file first"<<endl;
+		return;
+	}
+	else if ( auxFile == NULL )
+	{
+		cout<<"\nLoad/create auxiliary file first"<<endl;
+		return;
+	}
+	else if( frFile != NULL )
+	{
+		cout<<"\nFriend file already loaded, to load a different one, use the reset button"<<endl;
+		return;
+	}
+	//get the file name using a file dialog
+	static TString directory(".");
+	TGFileInfo fileInfo;
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = rootFileType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), menu, kFDSave, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	string temp = string(fileInfo.fFilename);
+	if( (temp.size()-5) != ( temp.rfind(".root") ) )
+	{
+		temp.append(".root");
+	}
+	directory = fileInfo.fIniDir;
+	
+	//create the aux file
+	frFile = new TFile(temp.c_str(),"RECREATE");
+	cout<<"\nFriend File Created"<<endl;
+}
+
+
+void MainWindow::openFriendFile()
+{
+	if ( runs == NULL )
+	{
+		cout<<"\nLoad Run Data first"<<endl;
+		return;
+	}
+	else if ( mainFile == NULL )
+	{
+		cout<<"\nLoad/create combined file first"<<endl;
+		return;
+	}
+	else if ( auxFile == NULL )
+	{
+		cout<<"\nLoad/create auxiliary file first"<<endl;
+		return;
+	}
+	else if( frFile != NULL )
+	{
+		cout<<"\nFriend file already loaded, to load a different one, use the reset button"<<endl;
+		return;
+	}
+	//get the file name using a file dialog
+	static TString directory(".");
+	TGFileInfo fileInfo;
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = rootFileType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), menu, kFDOpen, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	string temp = string(fileInfo.fFilename);
+	if( (temp.size()-5) != ( temp.rfind(".root") ) )
+	{
+		temp.append(".root");
+	}
+	directory = fileInfo.fIniDir;
+	
+	//open the aux file
+	frFile = new TFile(temp.c_str(),"UPDATE");
+	cout<<"\nFriend File Opened"<<endl;
+}
 
 /******************************************
 *******************************************
@@ -887,6 +1036,21 @@ void MainWindow::showBGCut()
 	dispFunc = BGCut;
 	cout<<"doing first update display"<<endl;
 	updateDisplay(Initial);
+}
+
+/******************************************
+*******************************************
+** Shape operations buttons
+*******************************************
+******************************************/
+void MainWindow::getFirstOrdShapes()
+{
+
+}
+
+void MainWindow::showFirstOrdShapes()
+{
+
 }
 
 /******************************************
