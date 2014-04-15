@@ -83,6 +83,10 @@ public:
 private:
 	//some private helper functions
 	void parseRunFileLine(const string& line, RunData& tempData);
+	bool checkUpToRunData();
+	bool checkUpToMainFile();
+	bool checkUpToAuxFile();
+	bool checkUpToFrFile();
 	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
@@ -416,11 +420,8 @@ void MainWindow::readRunData()
 
 void MainWindow::buildBigFile()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoadRun Data first"<<endl;
-		return;
-	}
+	if(!checkUpToRunDataFile())
+	{	return; }
 	else if (mainFile != NULL)
 	{
 		cout<<"\nA combined file is already loaded, use reset to create another"<<endl;
@@ -514,11 +515,8 @@ void MainWindow::buildBigFile()
 
 void MainWindow::openBigFile()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoad Run Data first"<<endl;
-		return;
-	}
+	if(!checkUpToRunDataFile())
+	{	return; }
 	if (mainFile != NULL)
 	{
 		cout<<"\nCombined file already loaded, to load a different one, use the reset button"<<endl;
@@ -555,17 +553,9 @@ void MainWindow::openBigFile()
 
 void MainWindow::makeAuxFile()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoad Run Data first"<<endl;
-		return;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
-		return;
-	}
-	else if(auxFile != NULL)
+	if(!checkUpToMainFile())
+	{	return; }
+	if(auxFile != NULL)
 	{
 		cout<<"\nAux file already loaded, to load a different one, use the reset button"<<endl;
 		return;
@@ -600,17 +590,9 @@ void MainWindow::makeAuxFile()
 
 void MainWindow::openAuxFile()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoad Run Data first"<<endl;
-		return;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
-		return;
-	}
-	else if(auxFile != NULL)
+	if(!checkUpToMainFile())
+	{	return; }
+	if(auxFile != NULL)
 	{
 		cout<<"\nAux file already loaded, to load a different one, use the reset button"<<endl;
 		return;
@@ -646,21 +628,8 @@ void MainWindow::openAuxFile()
 
 void MainWindow::makeFriendFile()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoad Run Data first"<<endl;
-		return;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
-		return;
-	}
-	else if ( auxFile == NULL )
-	{
-		cout<<"\nLoad/create auxiliary file first"<<endl;
-		return;
-	}
+	if(!checkUpToAuxFile())
+	{	return; }
 	else if( frFile != NULL )
 	{
 		cout<<"\nFriend file already loaded, to load a different one, use the reset button"<<endl;
@@ -697,22 +666,9 @@ void MainWindow::makeFriendFile()
 
 void MainWindow::openFriendFile()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoad Run Data first"<<endl;
-		return;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
-		return;
-	}
-	else if ( auxFile == NULL )
-	{
-		cout<<"\nLoad/create auxiliary file first"<<endl;
-		return;
-	}
-	else if( frFile != NULL )
+	if(!checkUpToAuxFile())
+	{	return; }
+	if( frFile != NULL )
 	{
 		cout<<"\nFriend file already loaded, to load a different one, use the reset button"<<endl;
 		return;
@@ -753,26 +709,8 @@ void MainWindow::openFriendFile()
 
 void MainWindow::getPIDCuts()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoadRun Data first"<<endl;
-		return;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
-		return;
-	}
-	else if ( auxFile == NULL )
-	{
-		cout<<"\nLoad/create aux file first"<<endl;
-		return;
-	}
-	else if (dispFunc != None)
-	{
-		cout<<"\nEnd display mode first"<<endl;
-		return;
-	}
+	if(!checkUpToAuxFile())
+	{	return; }
 	
 	for(int i=0; i<numRuns; ++i)
 	{
@@ -841,26 +779,8 @@ void MainWindow::getPIDCuts()
 
 void MainWindow::showPIDCut()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoadRun Data first"<<endl;
-		return;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
-		return;
-	}
-	else if ( auxFile == NULL )
-	{
-		cout<<"\nLoad/create aux file first"<<endl;
-		return;
-	}
-	else if (dispFunc != None)
-	{
-		cout<<"\nEnd display mode first"<<endl;
-		return;
-	}
+	if(!checkUpToAuxFile())
+	{	return; }
 	
 	dispNum = 0;
 	dispFunc = PIDCut;
@@ -871,26 +791,8 @@ void MainWindow::showPIDCut()
 
 void MainWindow::getBGCuts()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoadRun Data first"<<endl;
-		return;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
-		return;
-	}
-	else if ( auxFile == NULL )
-	{
-		cout<<"\nLoad/create aux file first"<<endl;
-		return;
-	}
-	else if (dispFunc != None)
-	{
-		cout<<"\nEnd display mode first"<<endl;
-		return;
-	}
+	if(!checkUpToAuxFile())
+	{	return; }
 	
 	cout<<"\nWhen prompted to give regions, click at each of the four\nfollowing points specified, in any order"<<endl;
 	cout<<"The points are:\nLower bnd of the lower bg region\nUpper bnd of the lower bg region (also the lower bnd of the true region)"<<endl;
@@ -1011,30 +913,12 @@ void MainWindow::getBGCuts()
 
 void MainWindow::showBGCut()
 {
-	if ( runs == NULL )
-	{
-		cout<<"\nLoadRun Data first"<<endl;
-		return;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
-		return;
-	}
-	else if ( auxFile == NULL )
-	{
-		cout<<"\nLoad/create aux file first"<<endl;
-		return;
-	}
-	else if (dispFunc != None)
-	{
-		cout<<"\nEnd display mode first"<<endl;
-		return;
-	}
+	if(!checkUpToAuxFile())
+	{	return; }
+	
 	
 	dispNum = 0;
 	dispFunc = BGCut;
-	cout<<"doing first update display"<<endl;
 	updateDisplay(Initial);
 }
 
@@ -1045,12 +929,16 @@ void MainWindow::showBGCut()
 ******************************************/
 void MainWindow::getFirstOrdShapes()
 {
-
+	if(!checkUpToFrFile())
+	{	return; }
+	
 }
 
 void MainWindow::showFirstOrdShapes()
 {
-
+	if(!checkUpToFrFile())
+	{	return; }
+	
 }
 
 /******************************************
@@ -1387,7 +1275,7 @@ void MainWindow::endSeqSpec()
 ******************************************/
 void MainWindow::resetToStart()
 {
-	if ( runs == NULL && mainFile == NULL && auxFile==NULL)
+	if ( runs == NULL && mainFile == NULL && auxFile==NULL && frFile==NULL)
 	{
 		cout<<"\nNothing To Reset"<<endl;
 		return;
@@ -1409,6 +1297,13 @@ void MainWindow::resetToStart()
 		delete mainFile;
 		mainFile = NULL;
 	}
+	if(frFile != NULL)
+	{
+		delete mainFile;
+		mainFile = NULL;
+	}
+	dispNum = 0;
+	dispFunc = None;
 	cout<<"Reset to initial state"<<endl;
 	
 }
@@ -1536,6 +1431,96 @@ TH1F* MainWindow::retrieveBGSpec(int runN)
 {
 	string histName = makeBGSpecName(runN);
 	return reinterpret_cast<TH1F*>(auxFile->Get(histName.c_str()));
+}
+
+bool MainWindow::checkUpToRunData()
+{
+	if ( runs == NULL )
+	{
+		cout<<"\nLoad Run Data first"<<endl;
+		return false;
+	}
+	else if (dispFunc != None)
+	{
+		cout<<"\nEnd display mode first"<<endl;
+		return false;
+	}
+	return true;
+}
+
+bool MainWindow::checkUpToMainFile()
+{
+	if ( runs == NULL )
+	{
+		cout<<"\nLoad Run Data first"<<endl;
+		return false;
+	}
+	else if ( mainFile == NULL )
+	{
+		cout<<"\nLoad/create combined file first"<<endl;
+		return false;
+	}
+	else if (dispFunc != None)
+	{
+		cout<<"\nEnd display mode first"<<endl;
+		return false;
+	}
+	return true;
+}
+
+bool MainWindow::checkUpToAuxFile()
+{
+	if ( runs == NULL )
+	{
+		cout<<"\nLoad Run Data first"<<endl;
+		return false;
+	}
+	else if ( mainFile == NULL )
+	{
+		cout<<"\nLoad/create combined file first"<<endl;
+		return false;
+	}
+	else if ( auxFile == NULL )
+	{
+		cout<<"\nLoad/create auxiliary file first"<<endl;
+		return false;
+	}
+	else if (dispFunc != None)
+	{
+		cout<<"\nEnd display mode first"<<endl;
+		return false;
+	}
+	return true;
+}
+
+bool MainWindow::checkUpToFrFile()
+{
+	if ( runs == NULL )
+	{
+		cout<<"\nLoad Run Data first"<<endl;
+		return false;
+	}
+	else if ( mainFile == NULL )
+	{
+		cout<<"\nLoad/create combined file first"<<endl;
+		return false;
+	}
+	else if ( auxFile == NULL )
+	{
+		cout<<"\nLoad/create auxiliary file first"<<endl;
+		return false;
+	}
+	else if( frFile == NULL )
+	{
+		cout<<"\nFriend file already loaded, to load a different one, use the reset button"<<endl;
+		return false;
+	}
+	else if (dispFunc != None)
+	{
+		cout<<"\nEnd display mode first"<<endl;
+		return false;
+	}
+	return true;
 }
 
 void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
