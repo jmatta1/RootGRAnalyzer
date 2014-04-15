@@ -1,6 +1,9 @@
 *.root
+!run1156.root
+!run1157.root
+!run1160.root
 *.csv
-!demo.csv
+!snDemo.csv
 init.C
 utils.C
 oldFuncs.C
