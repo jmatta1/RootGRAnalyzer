@@ -97,9 +97,11 @@ private:
 	string makeBGCutName(int runN);
 	string makeTRCutName(int runN);
 	string makeBGSpecName(int runN);
-	string makeOrigShapeSpecName(int runN)
-	string makeFirstOrderShapeSpecName(int runN)
-	string makeSecondOrderShapeSpecName(int runN)
+	string makeOrigShapeSpecName(int runN);
+	string makeFirstOrderShapeSpecName(int runN);
+	string makeFirstOrderShapeTreeName(int runN);
+	string makeSecondOrderShapeSpecName(int runN);
+	
 
 	//functions for retrieving various things from files
 	TTree* retrieveTree(int runN);
@@ -110,9 +112,11 @@ private:
 	TCut* retrieveBGCut(int runN);
 	TCut* retrieveTRCut(int runN);
 	TH2F* retrieveBGSpec(int runN);
-	TH2F* retrieveOrigShapeSpec(int runN)
-	TH2F* retrieveFirstOrderShapeSpec(int runN)
-	TH2F* retrieveSecondOrderShapeSpec(int runN)
+	TH2F* retrieveOrigShapeSpec(int runN);
+	TH2F* retrieveFirstOrderShapeSpec(int runN);
+	TTree* retrieveFirstOrderShapeTree(int runN);
+	TH2F* retrieveSecondOrderShapeSpec(int runN);
+	
 	
 	//functions for retrieving various things from files
 	//and then throwing out error messages if the pointer comes back null
@@ -124,10 +128,12 @@ private:
 	TCut* testBGCut(int runN);
 	TCut* testTRCut(int runN);
 	TH2F* testBGSpec(int runN);
-	TH2F* testOrigShapeSpec(int runN)
-	TH2F* testFirstOrderShapeSpec(int runN)
-	TH2F* testSecondOrderShapeSpec(int runN)
-
+	TH2F* testOrigShapeSpec(int runN);
+	TH2F* testFirstOrderShapeSpec(int runN);
+	TTree* testFirstOrderShapeTree(int runN);
+	TH2F* testSecondOrderShapeSpec(int runN);
+	
+	
 	//display functions for sequential displays
 	void updateDisplay(const UpdateCallType& tp);
 	void updatePIDDisp(const UpdateCallType& tp);
@@ -136,6 +142,7 @@ private:
 	//Gui stuff
 	TGMainFrame *menu;
 	TCanvas *whiteBoard;
+	TUnixSystem *sys;
 	
 	//sequential display stuff
 	int dispNum;
@@ -159,6 +166,8 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	dispNum = 0;
 	dispFunc = None;
 
+	sys = new TUnixSystem();
+	
 	//create the area for the menu items
 	menu = new TGMainFrame(parent,width,height);
 	//create the canvas
@@ -350,11 +359,13 @@ MainWindow::~MainWindow()
 	menu->Cleanup();
 	delete whiteBoard;
 	delete menu;
+	delete sys;
+	sys=NULL;
+	
 	if(runs != NULL)
 	{
 		delete[] runs;
 		runs = NULL;
-		numRuns=0;
 	}
 	if(auxFile != NULL)
 	{
@@ -440,7 +451,7 @@ void MainWindow::readRunData()
 
 void MainWindow::buildBigFile()
 {
-	if(!checkUpToRunDataFile())
+	if(!checkUpToRunData())
 	{	return; }
 	else if (mainFile != NULL)
 	{
@@ -535,7 +546,7 @@ void MainWindow::buildBigFile()
 
 void MainWindow::openBigFile()
 {
-	if(!checkUpToRunDataFile())
+	if(!checkUpToRunData())
 	{	return; }
 	if (mainFile != NULL)
 	{
@@ -927,61 +938,143 @@ void MainWindow::showBGCut()
 ******************************************/
 void MainWindow::getFirstOrdShapes()
 {
-	if(!checkUpToFrFile())
+	if( !checkUpToFrFile() )
 	{	return; }
 	
+	//cout<<"checkUpToFrFile == "<<checkUpToFrFile()<<" frFile = "<<frFile<<endl;
+	
 	cout<<"\nWhen prompted click along the top and bottom edges of the high counts region of the spectrum"<<endl;
-	cout<<"You can click as many times as you like"<<endl;
+	cout<<"You must click at least 4 times, preferably more\n"<<endl;
+	
+	double* centers = new double[3*numRuns];
 	
 	for(int i=0; i<numRuns; ++i)
 	{
 		cout<<"Loading run "<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
 		//grab the tree
 		TTree* temp = testTree( runs[i].runNumber );
+		if(temp==NULL)
+		{return;}
 		//get the name for the histogram
-		string histName = makeFirstOrderSpecName( runs[i].runNumber );
+		string histName = makeOrigShapeSpecName( runs[i].runNumber );
 		//build the draw command, the cut does not need building as it is simple
 		ostringstream drawCmd;
 		drawCmd<<"Thscat:Xfp>>"<<histName<<"(240,-600,600,300,-3,3)";
+		string drawStr = drawCmd.str();
 		//draw the histogram and set the axes correctly
-		temp->Draw(drawCmd.str().c_str(),RayCut,"colz");
+		temp->Draw(drawStr.c_str(),RayCut,"colz");
 		TH2F* tempH2 = reinterpret_cast<TH2F*>(gDirectory->Get(histName.c_str()));
 		ostringstream histTitler;
-		histNamer<<"Run "<<runs[i].runNumber<<" Th_scatter:X_fp( Rayid==0 )";
-		tempH2->SetTitle(histNamer.str().c_str());
-		canvas->SetLogz(1);
+		histTitler<<"Run "<<runs[i].runNumber<<" Th_scatter:X_fp( Rayid==0 )";
+		tempH2->SetTitle(histTitler.str().c_str());
+		auxFile->cd();
+		tempH2->Write(histName.c_str(),TObject::kOverwrite);
+		whiteBoard->SetLogz(1);
+		whiteBoard->Update();
 		cout<<"Give Top Edge"<<endl;
 		//wait for the user to enter the cut then retrieve it
 		TCutG* upper=(TCutG*)gPad->WaitPrimitive("Graph","PolyLine");
 		//change the name of the cut to something more descriptive
-		top->SetName("top");
+		upper->SetName("top");
 		cout<<"Give Bottom Edge"<<endl;
 		//wait for the user to enter the cut then retrieve it
 		TCutG* lower=(TCutG*)gPad->WaitPrimitive("Graph","PolyLine");
 		//change the name of the cut to something more descriptive
-		bottom->SetName("bottom");
+		lower->SetName("bottom");
 		
 		TFitResultPtr temp1 = upper->Fit("pol2","SEQ");
 		TFitResultPtr temp2 = lower->Fit("pol2","SEQ");
+		whiteBoard->Update();
 		
 		const double* tParams = temp1->GetParams();
 		const double* bParams = temp2->GetParams();
-	
-		ostringstream outBuilder;
-	
-		outBuilder<<tParams[0]<<", "<<tParams[1]<<", "<<tParams[2]<<", ";
-		outBuilder<<bParams[0]<<", "<<bParams[1]<<", "<<bParams[2];
-	
-		string retVal = outBuilder.str();
 		
-		output<<runs[i].runNumber<<", "<<retVal<<endl;
+		//construct the polynomial that is the center of these two polynomials
+		centers[3*i]   = (tParams[0]+bParams[0])/2;
+		centers[3*i+1] = (tParams[1]+bParams[1])/2;
+		centers[3*i+2] = (tParams[2]+bParams[2])/2;
+	
+		
+		//cout<<centers[3*i]<<", "<<centers[3*i+1]<<", "<<centers[3*i+2]<<endl;
+		
+		//sleep for 2 seconds so the user can see the fitted edges
+		sys->Sleep(2000);
 		
 		//now delete the file and cut
-		delete file;
+		delete temp;
 		delete upper;
 		delete lower;
-		delete canvas;
+		delete tempH2;
 	}
+	whiteBoard->Clear();
+	whiteBoard->Update();
+	
+	cout<<"\nNow building friend trees with first order shape corrections."<<endl;
+	cout<<"This could take some time depending on the number of events in the trees."<<endl;
+	
+	for(int i=0; i<numRuns; ++i)
+	{
+		cout<<"Preparing to apply first order shape corection to run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
+		//grab the tree, we do not need to test it because we tested it before so we
+		//simply use retrieveTree rather than testTree
+		TTree* orig = retrieveTree( runs[i].runNumber );
+		//make the new tree
+		frFile->cd();
+		string treeName = makeFirstOrderShapeTreeName(runs[i]);
+		TTree* frnd = new TTree(treeName.c_str(),treeName.c_str());
+		//put the polynomial parameters for this run into quick variables
+		float a = center[3*i];
+		float b = center[3*i+1];
+		float c = center[3*i+2];
+		//set up variables whose addresses will be used in reading individual events
+		float theta;
+		float xfp;
+		orig->SetBranchAddress("Xfp",&xfp);
+		orig->SetBranchAddress("Thscat",&theta);
+		//set up the variable whose address will be used in writing the individual events
+		float thCor;
+		frnd->Branch("Thcorr",&thCor,"Thcorr/F");
+		
+		Long64_t numEnts = (orig->GetEntries());
+		float avg = 0.0;
+		
+		//fill the new tree
+		for(Long64_t j = 0; j<numEnts; ++j)
+		{
+			orig->GetEntry(j);
+			avg = ( a + (b*xfp) + (c*xfp*xfp) );
+			thCor = (theta - avg);
+			frnd->Fill();
+		}
+		string oldTreeName = makeTreeName(runs[i].runNumber);
+		frnd->AddFriend( oldTreeName.c_str(), mainFile.GetName() );
+		frFile->cd();
+		frnd->Write(treeName.c_str(),TObject::kOverwrite);
+		
+		//now construct the corrected histogram
+		string histName = makeFirstOrderShapeSpecName( runs[i].runNumber );
+		ostringstream drawCmd;
+		drawCmd<<"Thcorr:Xfp>>"<<histName<<"(240,-600,600,300,-3,3)";
+		string drawStr = drawCmd.str();
+		frnd->Draw(drawStr.c_str(), RayCut, "colz");
+		TH2F* tempH2 = reinterpret_cast<TH2F*>(gDirectory->Get(histName.c_str()));
+		ostringstream histTitler;
+		histTitler<<"Run "<<runs[i].runNumber<<" Th_Corr1:X_fp( Rayid==0 )";
+		auxFile->cd();
+		tempH2->Write(histName.c_str(),TObject::kOverwrite);
+		whiteBoard->SetLogz(1);
+		whiteBoard->Update();
+		cout<<"Done building friend tree, drawing new spec for 5 seconds"<<endl;
+		sys->Sleep(5000);
+		whiteBoard->Clear();
+		whiteBoard->Update();
+		
+		delete tempH2;
+		delete frnd;
+		delete orig;
+	}
+	delete[] centers;
+	cout<<"Done performing first order corrections"<<endl;
 }
 
 void MainWindow::showFirstOrdShapes()
@@ -1344,8 +1437,8 @@ void MainWindow::resetToStart()
 	}
 	if(frFile != NULL)
 	{
-		delete mainFile;
-		mainFile = NULL;
+		delete frFile;
+		frFile = NULL;
 	}
 	dispNum = 0;
 	dispFunc = None;
@@ -1618,7 +1711,7 @@ TH2F* MainWindow::testOrigShapeSpec(int runN)
 	TH2F* temp = retrieveOrigShapeSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a an original shape spectrum, you might have the wrong aux file loaded"<<endl;
+		cout<<"Missing an original shape spectrum, you might have the wrong aux file loaded"<<endl;
 		return NULL;
 	}
 	else
@@ -1646,7 +1739,35 @@ TH2F* MainWindow::testFirstOrderShapeSpec(int runN)
 	TH2F* temp = retrieveFirstOrderShapeSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a an original shape spectrum, you might have the wrong aux file loaded"<<endl;
+		cout<<"Missing a first order shape spectrum, you might have the wrong aux file loaded"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+string MainWindow::makeFirstOrderShapeTreeName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"run"<<runN<<"_tree_shape1";
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TTree* MainWindow::retrieveFirstOrderShapeTree(int runN)
+{
+	string histName = makeFirstOrderShapeTreeName(runN);
+	return reinterpret_cast<Tree*>(auxFile->Get(histName.c_str()));
+}
+
+Tree* MainWindow::testFirstOrderShapeTree(int runN)
+{
+	TTree* temp = retrieveFirstOrderShapeSpec(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a first order shape tree, you might have the wrong friend file loaded"<<endl;
 		return NULL;
 	}
 	else
@@ -1762,7 +1883,7 @@ bool MainWindow::checkUpToFrFile()
 	}
 	else if( frFile == NULL )
 	{
-		cout<<"\nFriend file already loaded, to load a different one, use the reset button"<<endl;
+		cout<<"\nLoad/create a friend file first"<<endl;
 		return false;
 	}
 	else if (dispFunc != None)
