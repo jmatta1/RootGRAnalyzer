@@ -107,6 +107,17 @@ private:
 	TCut* retrieveBGCut(int runN);
 	TCut* retrieveTRCut(int runN);
 	TH2F* retrieveBGSpec(int runN);
+	
+	//functions for retrieving various things from files
+	//and then throwing out error messages if the pointer comes back null
+	TTree* testTree(int runN);
+	TCutG* testPIDCut(int runN);
+	TH2F* testPIDSpec(int runN);
+	TCut* testBaseCut(int runN);
+	TGraph* testBGGraph(int runN);
+	TCut* testBGCut(int runN);
+	TCut* testTRCut(int runN);
+	TH2F* testBGSpec(int runN);
 
 	//display functions for sequential displays
 	void updateDisplay(const UpdateCallType& tp);
@@ -718,14 +729,10 @@ void MainWindow::getPIDCuts()
 		//make the PID cut name
 		string cName = makePIDCutName(runs[i].runNumber);
 		//retrive the tree
-		TTree* temp = retrieveTree(runs[i].runNumber);
+		TTree* temp = testTree(runs[i].runNumber);
 		//check to make sure temp is present
 		if(temp == NULL)
-		{
-			cout<<"Missing a tree from the combined file"<<endl;
-			cout<<"You probably loaded the wrong run data and combined file combination"<<endl;
-			return;
-		}
+		{	return;		}
 		//draw the histogram and set the axes correctly
 		string histName = makePIDSpecName(runs[i].runNumber);
 		string drawCommand = "Pi1:Pi2>>";
@@ -802,31 +809,13 @@ void MainWindow::getBGCuts()
 	for(int i=0; i<numRuns; ++i)
 	{
 		//first retrive the PID cut from the auxilliary file
-		TCutG* pidCut = retrievePIDCut(runs[i].runNumber);
-		if(pidCut == NULL)
-		{
-			cout<<"Missing a pidCut from the aux file"<<endl;
-			cout<<"You probably loaded the wrong run data aux file combination"<<endl;
-			return;
-		}
+		TCutG* pidCut = testPIDCut(runs[i].runNumber);
 		//get the base cut
-		TCut* baseCut = retrieveBaseCut(runs[i].runNumber);
-		if(baseCut == NULL)
-		{
-			cout<<"Missing a baseCut from the aux file"<<endl;
-			cout<<"Since the PID cut is present (which we know by making it to this point)"<<endl;
-			cout<<"And since the baseCut is generated and saved with the PID cuts"<<endl;
-			cout<<"Something odd is wrong"<<endl;
-			return;
-		}
+		TCut* baseCut = testBaseCut(runs[i].runNumber);
 		//get the tree from the main file
-		TTree* tree = retrieveTree(runs[i].runNumber);
-		if(tree == NULL)
-		{
-			cout<<"Missing a tree from the combined file"<<endl;
-			cout<<"You probably loaded the wrong run data combined file combination"<<endl;
-			return;
-		}
+		TTree* tree = testTree(runs[i].runNumber);
+		if(pidCut == NULL || baseCut == NULL || tree == NULL)
+		{	return;		}
 		//build the draw command
 		string histName = makeBGSpecName(runs[i].runNumber);
 		ostringstream cmdBuilder;
@@ -931,7 +920,36 @@ void MainWindow::getFirstOrdShapes()
 {
 	if(!checkUpToFrFile())
 	{	return; }
-	
+	for(int i=0; i<numRuns; ++i)
+	{
+		//grab the tree
+		TTree* temp = retrieveTree( runs[i].runNumber );
+		//draw the histogram and set the axes correctly
+		temp->Draw("Thscat:Xfp>>h2tvx(240,-600,600,300,-3,3)","Rayid==0","color");
+		TH2F* tempH2 = reinterpret_cast<TH2F*>(gDirectory->Get("h2tvx"));
+		ostringstream histNamer;
+		histNamer<<"Run "<<runs[i].runNumber<<" Th_scatter:X_fp( Rayid==0 )";
+		tempH2->SetTitle(histNamer.str().c_str());
+		canvas->SetLogz(1);
+		cout<<"\rGive Top Curve"<<flush;
+		//wait for the user to enter the cut then retrieve it
+		TCutG* top=(TCutG*)gPad->WaitPrimitive("CUTG","CutG");
+		//change the name of the cut to something more descriptive
+		top->SetName("top");
+		cout<<"\rGive Bottom Curve"<<flush;
+		//wait for the user to enter the cut then retrieve it
+		TCutG* bottom=(TCutG*)gPad->WaitPrimitive("CUTG","CutG");
+		//change the name of the cut to something more descriptive
+		bottom->SetName("bottom");
+		
+		output<<runs[i].runNumber<<", "<<fitCurves(top,bottom)<<endl;
+		
+		//now delete the file and cut
+		delete file;
+		delete top;
+		delete bottom;
+		delete canvas;
+	}
 }
 
 void MainWindow::showFirstOrdShapes()
@@ -991,12 +1009,10 @@ void MainWindow::updatePIDDisp(const UpdateCallType& tp)
 	}
 	
 	//retrieve the tree and cuts
-	hist = retrievePIDSpec( runs[dispNum].runNumber );
-	tempCG = retrievePIDCut( runs[dispNum].runNumber );
+	hist = testPIDSpec( runs[dispNum].runNumber );
+	tempCG = testPIDCut( runs[dispNum].runNumber );
 	if(hist==NULL || tempCG == NULL)
 	{
-		cout<<"Missing a tree or PID cut"<<endl;
-		cout<<"Check what run data, combined file, and aux file that you have"<<endl;
 		cout<<"Backing out of display mode"<<endl;
 		dispNum = 0;
 		dispFunc = None;
@@ -1113,20 +1129,17 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 		break;	
 	}
 	//retrieve the cuts and the tree
-	origHist = retrieveBGSpec(runs[dispNum].runNumber);
-	regions = retrieveBGGraph(runs[dispNum].runNumber);
+	origHist = testBGSpec(runs[dispNum].runNumber);
+	regions = testBGGraph(runs[dispNum].runNumber);
 	//test to make certain that everything is there
 	if(origHist==NULL || regions==NULL)
 	{
-		cout<<"Missing a spectrum or cut"<<endl;
-		cout<<"Check what run data, combined file, and aux file that you have"<<endl;
 		cout<<"Backing out of display mode"<<endl;
 		dispNum = 0;
 		dispFunc = None;
 		updateBGDisp(Final);//to cleanup static vars
 		return;
 	}
-	cout<<"Starting drawing"<<endl;
 	//otherwise draw all
 	whiteBoard->Divide(2,2);
 	whiteBoard->cd(1);
@@ -1329,6 +1342,28 @@ string MainWindow::makeTreeName(int runN)
 	return temp;
 }
 
+TTree* MainWindow::retrieveTree(int runN)
+{
+	string treeName = makeTreeName(runN);
+	return reinterpret_cast<TTree*>(mainFile->Get(treeName.c_str()));
+}
+
+TTree* MainWindow::testTree(int runN)
+{
+	TTree* temp = retrieveTree(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a raw data tree, you might have the wrong combined file loaded"<<endl;
+		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+
 string MainWindow::makePIDCutName(int runN)
 {
 	ostringstream cutNamer;
@@ -1337,12 +1372,55 @@ string MainWindow::makePIDCutName(int runN)
 	return temp;
 }
 
+TCutG* MainWindow::retrievePIDCut(int runN)
+{
+	string cName = makePIDCutName(runN);
+	return reinterpret_cast<TCutG*>(auxFile->Get(cName.c_str()));
+}
+
+TCutG* MainWindow::testPIDCut(int runN)
+{
+	TCutG* temp = retrievePIDCut(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a PID cut, you might have the wrong aux file loaded"<<endl;
+		cout<<"or you might have forgotten to run Get PID Cut(s)"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+
 string MainWindow::makePIDSpecName(int runN)
 {
 	ostringstream histNamer;
 	histNamer<<"h2PIDRun"<<runN;
 	string temp = histNamer.str();
 	return temp;
+}
+
+TH2F* MainWindow::retrievePIDSpec(int runN)
+{
+	string histName = makePIDSpecName(runN);
+	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
+}
+
+TH2F* MainWindow::testPIDSpec(int runN)
+{
+	TH2F* temp = retrievePIDSpec(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a PID spectrum, you might have the wrong aux file loaded"<<endl;
+		cout<<"or you might have forgotten to run Get PID Cut(s)"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
 }
 
 string MainWindow::makeBaseCutName(int runN)
@@ -1353,12 +1431,54 @@ string MainWindow::makeBaseCutName(int runN)
 	return temp;
 }
 
+TCut* MainWindow::retrieveBaseCut(int runN)
+{
+	string cName = makeBaseCutName(runN);
+	return reinterpret_cast<TCut*>(auxFile->Get(cName.c_str()));
+}
+
+TCut* MainWindow::testBaseCut(int runN)
+{
+	TCut* temp = retrieveBaseCut(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a base cut, you might have the wrong aux file loaded"<<endl;
+		cout<<"or you might have forgotten to run Get PID Cut(s)"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
 string MainWindow::makeBGGraphName(int runN)
 {
 	ostringstream graphNamer;
 	graphNamer<<"bgGraph"<<runN;
 	string temp = graphNamer.str();
 	return temp;
+}
+
+TGraph* MainWindow::retrieveBGGraph(int runN)
+{
+	string gName = makeBGGraphName(runN);
+	return reinterpret_cast<TGraph*>(auxFile->Get(gName.c_str()));
+}
+
+TGraph* MainWindow::testBGGraph(int runN)
+{
+	TGraph* temp = retrieveBGGraph(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a Yfp positions definition, you might have the wrong aux file loaded"<<endl;
+		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
 }
 
 string MainWindow::makeBGCutName(int runN)
@@ -1369,12 +1489,54 @@ string MainWindow::makeBGCutName(int runN)
 	return temp;
 }
 
+TCut* MainWindow::retrieveBGCut(int runN)
+{
+	string cName = makeBGCutName(runN);
+	return reinterpret_cast<TCut*>(auxFile->Get(cName.c_str()));
+}
+
+TCut* MainWindow::testBGCut(int runN)
+{
+	TCut* temp = retrieveBGCut(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a BG Region Cut, you might have the wrong aux file loaded"<<endl;
+		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
 string MainWindow::makeTRCutName(int runN)
 {
 	ostringstream cutNamer;
 	cutNamer<<"trCut"<<runN;
 	string temp = cutNamer.str();
 	return temp;
+}
+
+TCut* MainWindow::retrieveTRCut(int runN)
+{
+	string cName = makeTRCutName(runN);
+	return reinterpret_cast<TCut*>(auxFile->Get(cName.c_str()));
+}
+
+TCut* MainWindow::testTRCut(int runN)
+{
+	TCut* temp = retrieveTRCut(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a True+BG Region Cut, you might have the wrong aux file loaded"<<endl;
+		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
 }
 
 string MainWindow::makeBGSpecName(int runN)
@@ -1385,52 +1547,25 @@ string MainWindow::makeBGSpecName(int runN)
 	return temp;
 }
 
-TTree* MainWindow::retrieveTree(int runN)
-{
-	string treeName = makeTreeName(runN);
-	return reinterpret_cast<TTree*>(mainFile->Get(treeName.c_str()));
-}
-
-TCutG* MainWindow::retrievePIDCut(int runN)
-{
-	string cName = makePIDCutName(runN);
-	return reinterpret_cast<TCutG*>(auxFile->Get(cName.c_str()));
-}
-
-TH2F* MainWindow::retrievePIDSpec(int runN)
-{
-	string histName = makePIDSpecName(runN);
-	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
-}
-
-TCut* MainWindow::retrieveBaseCut(int runN)
-{
-	string cName = makeBaseCutName(runN);
-	return reinterpret_cast<TCut*>(auxFile->Get(cName.c_str()));
-}
-
-TGraph* MainWindow::retrieveBGGraph(int runN)
-{
-	string gName = makeBGGraphName(runN);
-	return reinterpret_cast<TGraph*>(auxFile->Get(gName.c_str()));
-}
-
-TCut* MainWindow::retrieveBGCut(int runN)
-{
-	string cName = makeBGCutName(runN);
-	return reinterpret_cast<TCut*>(auxFile->Get(cName.c_str()));
-}
-
-TCut* MainWindow::retrieveTRCut(int runN)
-{
-	string cName = makeTRCutName(runN);
-	return reinterpret_cast<TCut*>(auxFile->Get(cName.c_str()));
-}
-
 TH1F* MainWindow::retrieveBGSpec(int runN)
 {
 	string histName = makeBGSpecName(runN);
 	return reinterpret_cast<TH1F*>(auxFile->Get(histName.c_str()));
+}
+
+TH1F* MainWindow::testBGSpec(int runN)
+{
+	TH1F* temp = retrieveBGSpec(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a background spectrum, you might have the wrong aux file loaded"<<endl;
+		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
 }
 
 bool MainWindow::checkUpToRunData()
