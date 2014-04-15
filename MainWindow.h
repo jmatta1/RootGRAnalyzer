@@ -97,6 +97,9 @@ private:
 	string makeBGCutName(int runN);
 	string makeTRCutName(int runN);
 	string makeBGSpecName(int runN);
+	string makeOrigShapeSpecName(int runN)
+	string makeFirstOrderShapeSpecName(int runN)
+	string makeSecondOrderShapeSpecName(int runN)
 
 	//functions for retrieving various things from files
 	TTree* retrieveTree(int runN);
@@ -107,6 +110,9 @@ private:
 	TCut* retrieveBGCut(int runN);
 	TCut* retrieveTRCut(int runN);
 	TH2F* retrieveBGSpec(int runN);
+	TH2F* retrieveOrigShapeSpec(int runN)
+	TH2F* retrieveFirstOrderShapeSpec(int runN)
+	TH2F* retrieveSecondOrderShapeSpec(int runN)
 	
 	//functions for retrieving various things from files
 	//and then throwing out error messages if the pointer comes back null
@@ -118,6 +124,9 @@ private:
 	TCut* testBGCut(int runN);
 	TCut* testTRCut(int runN);
 	TH2F* testBGSpec(int runN);
+	TH2F* testOrigShapeSpec(int runN)
+	TH2F* testFirstOrderShapeSpec(int runN)
+	TH2F* testSecondOrderShapeSpec(int runN)
 
 	//display functions for sequential displays
 	void updateDisplay(const UpdateCallType& tp);
@@ -920,34 +929,57 @@ void MainWindow::getFirstOrdShapes()
 {
 	if(!checkUpToFrFile())
 	{	return; }
+	
+	cout<<"\nWhen prompted click along the top and bottom edges of the high counts region of the spectrum"<<endl;
+	cout<<"You can click as many times as you like"<<endl;
+	
 	for(int i=0; i<numRuns; ++i)
 	{
+		cout<<"Loading run "<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
 		//grab the tree
-		TTree* temp = retrieveTree( runs[i].runNumber );
+		TTree* temp = testTree( runs[i].runNumber );
+		//get the name for the histogram
+		string histName = makeFirstOrderSpecName( runs[i].runNumber );
+		//build the draw command, the cut does not need building as it is simple
+		ostringstream drawCmd;
+		drawCmd<<"Thscat:Xfp>>"<<histName<<"(240,-600,600,300,-3,3)";
 		//draw the histogram and set the axes correctly
-		temp->Draw("Thscat:Xfp>>h2tvx(240,-600,600,300,-3,3)","Rayid==0","color");
-		TH2F* tempH2 = reinterpret_cast<TH2F*>(gDirectory->Get("h2tvx"));
-		ostringstream histNamer;
+		temp->Draw(drawCmd.str().c_str(),RayCut,"colz");
+		TH2F* tempH2 = reinterpret_cast<TH2F*>(gDirectory->Get(histName.c_str()));
+		ostringstream histTitler;
 		histNamer<<"Run "<<runs[i].runNumber<<" Th_scatter:X_fp( Rayid==0 )";
 		tempH2->SetTitle(histNamer.str().c_str());
 		canvas->SetLogz(1);
-		cout<<"\rGive Top Curve"<<flush;
+		cout<<"Give Top Edge"<<endl;
 		//wait for the user to enter the cut then retrieve it
-		TCutG* top=(TCutG*)gPad->WaitPrimitive("CUTG","CutG");
+		TCutG* upper=(TCutG*)gPad->WaitPrimitive("Graph","PolyLine");
 		//change the name of the cut to something more descriptive
 		top->SetName("top");
-		cout<<"\rGive Bottom Curve"<<flush;
+		cout<<"Give Bottom Edge"<<endl;
 		//wait for the user to enter the cut then retrieve it
-		TCutG* bottom=(TCutG*)gPad->WaitPrimitive("CUTG","CutG");
+		TCutG* lower=(TCutG*)gPad->WaitPrimitive("Graph","PolyLine");
 		//change the name of the cut to something more descriptive
 		bottom->SetName("bottom");
 		
-		output<<runs[i].runNumber<<", "<<fitCurves(top,bottom)<<endl;
+		TFitResultPtr temp1 = upper->Fit("pol2","SEQ");
+		TFitResultPtr temp2 = lower->Fit("pol2","SEQ");
+		
+		const double* tParams = temp1->GetParams();
+		const double* bParams = temp2->GetParams();
+	
+		ostringstream outBuilder;
+	
+		outBuilder<<tParams[0]<<", "<<tParams[1]<<", "<<tParams[2]<<", ";
+		outBuilder<<bParams[0]<<", "<<bParams[1]<<", "<<bParams[2];
+	
+		string retVal = outBuilder.str();
+		
+		output<<runs[i].runNumber<<", "<<retVal<<endl;
 		
 		//now delete the file and cut
 		delete file;
-		delete top;
-		delete bottom;
+		delete upper;
+		delete lower;
 		delete canvas;
 	}
 }
@@ -1354,7 +1386,6 @@ TTree* MainWindow::testTree(int runN)
 	if( temp==NULL )
 	{
 		cout<<"Missing a raw data tree, you might have the wrong combined file loaded"<<endl;
-		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
 		return NULL;
 	}
 	else
@@ -1560,6 +1591,90 @@ TH1F* MainWindow::testBGSpec(int runN)
 	{
 		cout<<"Missing a background spectrum, you might have the wrong aux file loaded"<<endl;
 		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+string MainWindow::makeOrigShapeSpecName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"h2OrigShapeSpec"<<runN;
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TH2F* MainWindow::retrieveOrigShapeSpec(int runN)
+{
+	string histName = makeBGSpecName(runN);
+	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
+}
+
+TH2F* MainWindow::testOrigShapeSpec(int runN)
+{
+	TH2F* temp = retrieveOrigShapeSpec(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a an original shape spectrum, you might have the wrong aux file loaded"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+string MainWindow::makeFirstOrderShapeSpecName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"h2FirstOrderShapeSpec"<<runN;
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TH2F* MainWindow::retrieveFirstOrderShapeSpec(int runN)
+{
+	string histName = makeFirstOrderShapeSpecName(runN);
+	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
+}
+
+TH2F* MainWindow::testFirstOrderShapeSpec(int runN)
+{
+	TH2F* temp = retrieveFirstOrderShapeSpec(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a an original shape spectrum, you might have the wrong aux file loaded"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+string MainWindow::makeSecondOrderShapeSpecName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"h2SecondOrderShapeSpec"<<runN;
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TH2F* MainWindow::retrieveSecondOrderShapeSpec(int runN)
+{
+	string histName = makeSecondOrderShapeSpecName(runN);
+	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
+}
+
+TH2F* MainWindow::testSecondOrderShapeSpec(int runN)
+{
+	TH2F* temp = retrieveSecondOrderShapeSpec(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a an original shape spectrum, you might have the wrong aux file loaded"<<endl;
 		return NULL;
 	}
 	else
