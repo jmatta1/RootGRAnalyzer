@@ -1,5 +1,6 @@
 *.root
 *.csv
+!demo.csv
 init.C
 utils.C
 oldFuncs.C

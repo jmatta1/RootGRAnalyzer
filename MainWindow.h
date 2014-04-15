@@ -76,7 +76,7 @@ public:
 	//overall control operations
 	void makeTreeFileActive(){mainFile->cd();}
 	void makeAuxFileActive(){auxFile->cd();}
-	void makeFriendFileActive(frFile->cd();}
+	void makeFriendFileActive(){frFile->cd();}
 	void resetToStart();
 	void exitApp();
 	
