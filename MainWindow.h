@@ -25,6 +25,7 @@ using std::ios_base;
 #include<TTree.h>
 #include<TObject.h>
 #include<TCutG.h>
+#include<TCut.h>
 #include<TGLabel.h>
 #include<TH2F.h>
 #include<TH1F.h>
@@ -32,14 +33,16 @@ using std::ios_base;
 #include<TStyle.h>
 #include<TColor.h>
 #include<TPaveText.h>
+#include<TSystem.h>
+#include<TFitResult.h>
 
 //my includes
 #include"guiSupport.h"
 
-enum DisplayFunction{None, PIDCut, BGCut};
+enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp};
 enum UpdateCallType{ Initial, Normal, Final};
 
-TCut RayCut = "Rayid==0";
+TCut RayCut;
 
 //define the class that draws the window and handles button clicks and the like
 class MainWindow
@@ -111,7 +114,7 @@ private:
 	TGraph* retrieveBGGraph(int runN);
 	TCut* retrieveBGCut(int runN);
 	TCut* retrieveTRCut(int runN);
-	TH2F* retrieveBGSpec(int runN);
+	TH1F* retrieveBGSpec(int runN);
 	TH2F* retrieveOrigShapeSpec(int runN);
 	TH2F* retrieveFirstOrderShapeSpec(int runN);
 	TTree* retrieveFirstOrderShapeTree(int runN);
@@ -127,7 +130,7 @@ private:
 	TGraph* testBGGraph(int runN);
 	TCut* testBGCut(int runN);
 	TCut* testTRCut(int runN);
-	TH2F* testBGSpec(int runN);
+	TH1F* testBGSpec(int runN);
 	TH2F* testOrigShapeSpec(int runN);
 	TH2F* testFirstOrderShapeSpec(int runN);
 	TTree* testFirstOrderShapeTree(int runN);
@@ -142,7 +145,7 @@ private:
 	//Gui stuff
 	TGMainFrame *menu;
 	TCanvas *whiteBoard;
-	TUnixSystem *sys;
+	TSystem *sys;
 	
 	//sequential display stuff
 	int dispNum;
@@ -166,7 +169,10 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	dispNum = 0;
 	dispFunc = None;
 
-	sys = new TUnixSystem();
+	//sys = new TUnixSystem();
+	sys = gSystem;
+	
+	RayCut.SetTitle("Rayid==0");
 	
 	//create the area for the menu items
 	menu = new TGMainFrame(parent,width,height);
@@ -359,8 +365,8 @@ MainWindow::~MainWindow()
 	menu->Cleanup();
 	delete whiteBoard;
 	delete menu;
-	delete sys;
-	sys=NULL;
+	//delete sys;
+	//sys=NULL;
 	
 	if(runs != NULL)
 	{
@@ -489,7 +495,7 @@ void MainWindow::buildBigFile()
 	//create the big file
 	mainFile = new TFile(temp.c_str(),"RECREATE");
 	//start the loop to read in each smaller file
-	for(unsigned i=0; i<numRuns; ++i)
+	for(int i=0; i<numRuns; ++i)
 	{
 		//create the file name and the new tree name
 		ostringstream namer;
@@ -1020,12 +1026,12 @@ void MainWindow::getFirstOrdShapes()
 		TTree* orig = retrieveTree( runs[i].runNumber );
 		//make the new tree
 		frFile->cd();
-		string treeName = makeFirstOrderShapeTreeName(runs[i]);
+		string treeName = makeFirstOrderShapeTreeName(runs[i].runNumber);
 		TTree* frnd = new TTree(treeName.c_str(),treeName.c_str());
 		//put the polynomial parameters for this run into quick variables
-		float a = center[3*i];
-		float b = center[3*i+1];
-		float c = center[3*i+2];
+		float a = centers[3*i];
+		float b = centers[3*i+1];
+		float c = centers[3*i+2];
 		//set up variables whose addresses will be used in reading individual events
 		float theta;
 		float xfp;
@@ -1046,10 +1052,15 @@ void MainWindow::getFirstOrdShapes()
 			thCor = (theta - avg);
 			frnd->Fill();
 		}
-		string oldTreeName = makeTreeName(runs[i].runNumber);
-		frnd->AddFriend( oldTreeName.c_str(), mainFile.GetName() );
 		frFile->cd();
+		string oldTreeName = makeTreeName(runs[i].runNumber);
+		frnd->AddFriend( oldTreeName.c_str(), mainFile->GetName() );
+		frnd->FlushBaskets();
 		frnd->Write(treeName.c_str(),TObject::kOverwrite);
+		TFile* file = frnd->GetCurrentFile();
+		file->Flush();
+		
+		
 		
 		//now construct the corrected histogram
 		string histName = makeFirstOrderShapeSpecName( runs[i].runNumber );
@@ -1081,7 +1092,9 @@ void MainWindow::showFirstOrdShapes()
 {
 	if(!checkUpToFrFile())
 	{	return; }
-	
+	dispNum = 0;
+	dispFunc = ShapeDisp;
+	updateDisplay(Initial);
 }
 
 /******************************************
@@ -1318,6 +1331,66 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 	whiteBoard->cd(1);
 }
 
+void MainWindow::updateShapeDisp(const UpdateCallType& tp)
+{
+	static TH2F* origShape;
+	static TH2F* newShape;
+	switch(tp)
+	{
+	case Initial:
+		origShape = NULL;
+		newShape = NULL;
+		whiteBoard->Clear();
+		whiteBoard->Update();
+		break;
+	case Normal:
+		if(origShape!=NULL)
+		{
+			delete origShape;
+			origShape=NULL;
+		}
+		if(newShape!=NULL)
+		{
+			delete newShape;
+			newShape=NULL;
+		}
+		whiteBoard->Clear();
+		whiteBoard->Update();
+		break;
+	case Final:
+		cout<<"Done with display, erasing whiteboard"<<endl;
+		if(origShape!=NULL)
+		{
+			delete origShape;
+			origShape=NULL;
+		}
+		if(newShape!=NULL)
+		{
+			delete newShape;
+			newShape=NULL;
+		}
+		whiteBoard->Clear();
+		whiteBoard->Update();
+		return;
+		break;	
+	}
+	
+	origShape = testOrigShapeSpec(runs[dispNum].runNumber);
+	newShape = testFirstOrderShapeSpec(runs[dispNum].runNumber);
+	
+	if(origShape==NULL || newShape==NULL)
+	{	return;		}
+	
+	whiteBoard->Divide(2,1);
+	whiteBoard->cd(1);
+	origShape->Draw("colz");
+	gPad->SetLogz(1);
+	whiteBoard->cd(2);
+	newShape->Draw("colz");
+	gPad->SetLogz(1);
+	whiteBoard->Update();
+}
+
 void MainWindow::updateDisplay(const UpdateCallType& tp)
 {
 	//I was using a switch statement for this but for some reason the interpretter was not handling it correctly
@@ -1330,6 +1403,11 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 	else if(dispFunc == BGCut)
 	{
 		updateBGDisp(tp);
+		return;
+	}
+	else if(dispFunc == ShapeDisp)
+	{
+		updateShapeDisp(tp);
 		return;
 	}
 	else if(dispFunc == None)
@@ -1702,7 +1780,7 @@ string MainWindow::makeOrigShapeSpecName(int runN)
 
 TH2F* MainWindow::retrieveOrigShapeSpec(int runN)
 {
-	string histName = makeBGSpecName(runN);
+	string histName = makeOrigShapeSpecName(runN);
 	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
 }
 
@@ -1759,12 +1837,12 @@ string MainWindow::makeFirstOrderShapeTreeName(int runN)
 TTree* MainWindow::retrieveFirstOrderShapeTree(int runN)
 {
 	string histName = makeFirstOrderShapeTreeName(runN);
-	return reinterpret_cast<Tree*>(auxFile->Get(histName.c_str()));
+	return reinterpret_cast<TTree*>(auxFile->Get(histName.c_str()));
 }
 
-Tree* MainWindow::testFirstOrderShapeTree(int runN)
+TTree* MainWindow::testFirstOrderShapeTree(int runN)
 {
-	TTree* temp = retrieveFirstOrderShapeSpec(runN);
+	TTree* temp = retrieveFirstOrderShapeTree(runN);
 	if( temp==NULL )
 	{
 		cout<<"Missing a first order shape tree, you might have the wrong friend file loaded"<<endl;
