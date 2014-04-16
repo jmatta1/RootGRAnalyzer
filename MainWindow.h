@@ -1016,17 +1016,28 @@ void MainWindow::getFirstOrdShapes()
 	whiteBoard->Update();
 	
 	cout<<"\nNow building friend trees with first order shape corrections."<<endl;
-	cout<<"This could take some time depending on the number of events in the trees."<<endl;
+	cout<<"This could take some time depending on the number of events in the trees.\n"<<endl;
 	
 	for(int i=0; i<numRuns; ++i)
 	{
-		cout<<"Preparing to apply first order shape corection to run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
 		//grab the tree, we do not need to test it because we tested it before so we
 		//simply use retrieveTree rather than testTree
 		TTree* orig = retrieveTree( runs[i].runNumber );
 		//make the new tree
 		frFile->cd();
+		//check if the friend tree already exists
+		TTree* test = retrieveFirstOrderShapeTree(runs[i].runNumber);
 		string treeName = makeFirstOrderShapeTreeName(runs[i].runNumber);
+		if(test!=NULL)
+		{
+			delete test;
+			test=NULL;
+			ostringstream nameBuilder;
+			nameBuilder<<treeName<<";*";
+			string toBeDeleted = nameBuilder.str();
+			frFile->Delete(toBeDeleted.c_str());
+			cout<<"Deleted original friend tree so we can build a replacement"<<endl;
+		}
 		TTree* frnd = new TTree(treeName.c_str(),treeName.c_str());
 		//put the polynomial parameters for this run into quick variables
 		float a = centers[3*i];
@@ -1043,7 +1054,7 @@ void MainWindow::getFirstOrdShapes()
 		
 		Long64_t numEnts = (orig->GetEntries());
 		float avg = 0.0;
-		
+		cout<<"Preparing to apply first order shape corection to run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
 		//fill the new tree
 		for(Long64_t j = 0; j<numEnts; ++j)
 		{
@@ -1075,7 +1086,7 @@ void MainWindow::getFirstOrdShapes()
 		tempH2->Write(histName.c_str(),TObject::kOverwrite);
 		whiteBoard->SetLogz(1);
 		whiteBoard->Update();
-		cout<<"Done building friend tree, drawing new spec for 5 seconds"<<endl;
+		cout<<"Done building friend tree, drawing new spec for 5 seconds\n"<<endl;
 		sys->Sleep(5000);
 		whiteBoard->Clear();
 		whiteBoard->Update();
@@ -1837,7 +1848,7 @@ string MainWindow::makeFirstOrderShapeTreeName(int runN)
 TTree* MainWindow::retrieveFirstOrderShapeTree(int runN)
 {
 	string histName = makeFirstOrderShapeTreeName(runN);
-	return reinterpret_cast<TTree*>(auxFile->Get(histName.c_str()));
+	return reinterpret_cast<TTree*>(frFile->Get(histName.c_str()));
 }
 
 TTree* MainWindow::testFirstOrderShapeTree(int runN)
@@ -1982,7 +1993,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	conv.str(temp);
 	conv>>tempData.runNumber;
 	//cout<<tempData.runNumber<<" ";
-	
 	conv.clear();
 	//read the angle
 	ind = tempLine.find(',');
@@ -1991,12 +2001,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	conv.str(temp);
 	conv>>tempData.angle;
 	//cout<<tempData.angle<<" ";
-	conv.clear();
-	//read the magnetic rigidity (skipping it)
-	ind = tempLine.find(',');
-	temp = tempLine.substr(0,ind);
-	tempLine = tempLine.substr(ind+1);
-	conv.str(temp);
 	conv.clear();
 	//read the beam energy 
 	ind = tempLine.find(',');
