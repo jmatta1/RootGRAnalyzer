@@ -70,6 +70,10 @@ public:
 	//shape operations
 	void getFirstOrdShapes();
 	void showFirstOrdShapes();
+	void showSubbedShapes();
+
+	//cs operations
+	void simpleGetCS();
 
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -236,22 +240,22 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	TGLabel* cutLabel = new TGLabel(cutFrame, "Cut and Shape Operations");
 	cutFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	//Get PIDs button
-	TGTextButton *getPIDs = new TGTextButton(cutFrame,"Get PID Cut(s)");
+	TGTextButton *getPIDs = new TGTextButton(cutFrame,"Get PID Cuts");
 	getPIDs->Connect("Clicked()","MainWindow",this,"getPIDCuts()");
 	cutFrame->AddFrame(getPIDs, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
 	//display PIDs button
-	TGTextButton *dispPID = new TGTextButton(cutFrame,"Show PID Cut(s)");
+	TGTextButton *dispPID = new TGTextButton(cutFrame,"Show PID Cuts");
 	dispPID->Connect("Clicked()","MainWindow",this,"showPIDCut()");
 	cutFrame->AddFrame(dispPID, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
 	//Get BG Cuts Button
-	TGTextButton *getBG = new TGTextButton(cutFrame,"Get BG Cut(s)");
+	TGTextButton *getBG = new TGTextButton(cutFrame,"Get BG Cuts");
 	getBG->Connect("Clicked()","MainWindow",this,"getBGCuts()");
 	cutFrame->AddFrame(getBG, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
 	//Display BG Cuts Button
-	TGTextButton *dispBG = new TGTextButton(cutFrame,"Show BG Cut(s)");
+	TGTextButton *dispBG = new TGTextButton(cutFrame,"Show BG Cuts");
 	dispBG->Connect("Clicked()","MainWindow",this,"showBGCut()");
 	cutFrame->AddFrame(dispBG, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
@@ -260,14 +264,19 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	** Shape operations buttons
 	******************************************/
 	//Get shapes button
-	TGTextButton *getShapesBut = new TGTextButton(cutFrame,"Get 1st Order Shapes(s)");
+	TGTextButton *getShapesBut = new TGTextButton(cutFrame,"Get Shapes");
 	getShapesBut->Connect("Clicked()","MainWindow",this,"getFirstOrdShapes()");
 	cutFrame->AddFrame(getShapesBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
 	//display shapes button
-	TGTextButton *showShapesBut = new TGTextButton(cutFrame,"Show 1st Order Shapes(s)");
+	TGTextButton *showShapesBut = new TGTextButton(cutFrame,"Show Shapes");
 	showShapesBut->Connect("Clicked()","MainWindow",this,"showFirstOrdShapes()");
 	cutFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	
+	//display bgsub shapes button
+	TGTextButton *showbgSubBut = new TGTextButton(cutFrame,"Show BG-sub Shapes (TBI)");
+	showbgSubBut->Connect("Clicked()","MainWindow",this,"showSubbedShapes()");
+	cutFrame->AddFrame(showbgSubBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
 	//add the cut frame to the overall frame
 	overallFrame->AddFrame(cutFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
@@ -276,6 +285,17 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//add the overall frame to the full frame	
 	fullFrame->AddFrame(overallFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
 	
+	
+	/******************************************
+	** Get Cross-Sections buttons
+	******************************************/
+	TGVerticalFrame *csFrame = new TGVerticalFrame(overallFrame, width, height);
+	TGLabel* csLabel = new TGLabel(csFrame, "Cross-Section Extraction");
+	csFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	//Get PIDs button
+	TGTextButton *scsBut = new TGTextButton(csFrame,"Simple CS Extraction (TBI)");
+	scsBut->Connect("Clicked()","MainWindow",this,"simpleGetCS()");
+	csFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
 	
 	/******************************************
@@ -1106,6 +1126,17 @@ void MainWindow::showFirstOrdShapes()
 	dispNum = 0;
 	dispFunc = ShapeDisp;
 	updateDisplay(Initial);
+}
+
+void MainWindow::showSubbedShapes()
+{
+
+}
+
+
+void MainWindow::simpleGetCS()
+{
+
 }
 
 /******************************************
