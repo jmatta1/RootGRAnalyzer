@@ -39,7 +39,7 @@ using std::ios_base;
 //my includes
 #include"guiSupport.h"
 
-enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp};
+enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs};
 enum UpdateCallType{ Initial, Normal, Final};
 
 TCut RayCut;
@@ -1207,6 +1207,7 @@ void MainWindow::getFirstOrdShapes()
 		scaledBGHist->Write(scaledBgHistName.c_str(),TObject::kOverwrite);
 		subHist->Write(subHistName.c_str(),TObject::kOverwrite);
 		
+		auxFile->Flush();
 		
 		cout<<"Done building friend tree and assorted necessary spectra"<<endl;
 		
@@ -1234,7 +1235,7 @@ void MainWindow::showSubbedShapes()
 	if(!checkUpToFrFile())
 	{	return; }
 	dispNum = 0;
-	dispFunc = ShapeDisp;
+	dispFunc = SubbedSpecs;
 	updateDisplay(Initial);
 }
 
@@ -1527,7 +1528,13 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 	newShape = testFirstOrderShapeSpec(runs[dispNum].runNumber);
 	
 	if(origShape==NULL || newShape==NULL)
-	{	return;		}
+	{	
+		cout<<"Backing out of display mode"<<endl;
+		dispNum = 0;
+		dispFunc = None;
+		updateShapeDisp(Final);//to cleanup static vars
+		return;
+	}
 	
 	whiteBoard->Divide(2,1);
 	whiteBoard->cd(1);
@@ -1539,43 +1546,67 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 	whiteBoard->Update();
 }
 
-void MainWindow::updateShapeDisp(const UpdateCallType& tp)
+void MainWindow::updateSubDisp(const UpdateCallType& tp)
 {
-	static TH2F* origShape;
-	static TH2F* newShape;
+	static TH2F* trueSpec;
+	static TH2F* bgSpec;
+	static TH2F* scaledBgSpec;
+	static TH2F* subSpec;
 	switch(tp)
 	{
 	case Initial:
-		origShape = NULL;
-		newShape = NULL;
+		trueSpec = NULL;
+		bgSpec = NULL;
+		scaledBgSpec = NULL;
+		subSpec = NULL;
 		whiteBoard->Clear();
 		whiteBoard->Update();
 		break;
 	case Normal:
-		if(origShape!=NULL)
+		if(trueSpec!=NULL)
 		{
-			delete origShape;
-			origShape=NULL;
+			delete trueSpec;
+			trueSpec=NULL;
 		}
-		if(newShape!=NULL)
+		if(bgSpec!=NULL)
 		{
-			delete newShape;
-			newShape=NULL;
+			delete bgSpec;
+			bgSpec=NULL;
+		}
+		if(scaledBgSpec!=NULL)
+		{
+			delete scaledBgSpec;
+			scaledBgSpec=NULL;
+		}
+		if(subSpec!=NULL)
+		{
+			delete subSpec;
+			subSpec=NULL;
 		}
 		whiteBoard->Clear();
 		whiteBoard->Update();
 		break;
 	case Final:
 		cout<<"Done with display, erasing whiteboard"<<endl;
-		if(origShape!=NULL)
+		if(trueSpec!=NULL)
 		{
-			delete origShape;
-			origShape=NULL;
+			delete trueSpec;
+			trueSpec=NULL;
 		}
-		if(newShape!=NULL)
+		if(bgSpec!=NULL)
 		{
-			delete newShape;
-			newShape=NULL;
+			delete bgSpec;
+			bgSpec=NULL;
+		}
+		if(scaledBgSpec!=NULL)
+		{
+			delete scaledBgSpec;
+			scaledBgSpec=NULL;
+		}
+		if(subSpec!=NULL)
+		{
+			delete subSpec;
+			subSpec=NULL;
 		}
 		whiteBoard->Clear();
 		whiteBoard->Update();
@@ -1583,8 +1614,33 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 		break;	
 	}
 	
-	origShape = testOrigShapeSpec(runs[dispNum].runNumber);
-	newShape = testFirstOrderShapeSpec(runs[dispNum].runNumber);
+	int runN = runs[dispNum].runNumber;
+	
+	//retrieve the spectra
+	trueSpec = testTRpBGSpec( runN )
+	bgSpec = testBGOnlySpec( runN )
+	scaledBgSpec = testSubSpec( runN )
+	subSpec = testScaledBGSpec( runN )
+	
+	if(	trueSpec == NULL || bgSpec == NULL || scaledBgSpec == NULL || subSpec == NULL || )
+	{	
+		cout<<"Backing out of display mode"<<endl;
+		dispNum = 0;
+		dispFunc = None;
+		updateSubDisp(Final);//to cleanup static vars
+		return;
+	}
+	
+	//now draw everything
+	whiteBoard->Divide(2,2);
+	whiteBoard->cd(1);
+	trueSpec->Draw("colz");	
+	whiteBoard->cd(2);
+	bgSpec->Draw("colz");
+	whiteBoard->cd(3);
+	scaledBgSpec->Draw("colz");
+	whiteBoard->cd(4);
+	subSpec->Draw("colz");
 	
 }
 
@@ -1607,7 +1663,7 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 		updateShapeDisp(tp);
 		return;
 	}
-	else if(dispFunc == subbedSpecs)
+	else if(dispFunc == SubbedSpecs)
 	{
 		updateSubDisp(tp);
 		return
