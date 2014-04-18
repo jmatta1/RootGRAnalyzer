@@ -1,3 +1,5 @@
+#ifndef MAIN_WINDOW_H
+#define MAIN_WINDOW_H
 //stl includes
 #include<iostream>
 #include<sstream>
@@ -112,8 +114,8 @@ private:
 	string makeFirstOrderShapeTreeName(int runN);
 	string makeTRpBGSpecName(int runN);
 	string makeBGOnlySpecName(int runN);
-	string makeSubSpecName(int runN);
 	string makeScaledBGSpecName(int runN);
+	string makeSubSpecName(int runN);
 
 	//functions for retrieving various things from files
 	TTree* retrieveTree(int runN);
@@ -129,8 +131,8 @@ private:
 	TTree* retrieveFirstOrderShapeTree(int runN);
 	TH2F* retrieveTRpBGSpec(int runN);
 	TH2F* retrieveBGOnlySpec(int runN);
-	TH2F* retrieveSubSpec(int runN);
 	TH2F* retrieveScaledBGSpec(int runN);
+	TH2F* retrieveSubSpec(int runN);
 
 	//functions for retrieving various things from files
 	//and then throwing out error messages if the pointer comes back null
@@ -147,8 +149,8 @@ private:
 	TTree* testFirstOrderShapeTree(int runN);
 	TH2F* testTRpBGSpec(int runN);
 	TH2F* testBGOnlySpec(int runN);
-	TH2F* testSubSpec(int runN);
 	TH2F* testScaledBGSpec(int runN);
+	TH2F* testSubSpec(int runN);
 	
 	//display functions for sequential displays
 	void updateDisplay(const UpdateCallType& tp);
@@ -1280,6 +1282,47 @@ void MainWindow::simpleGetCS()
 {
 	if(!checkUpToFrFile())
 	{	return; }
+	
+	//first we need to find out a file name to save this data to
+	cout<<"\nGive the file name to save this cross-section data to"<<endl
+	static TString directory(".");
+	TGFileInfo fileInfo;
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = csvDataType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), menu, kFDSave, &fileInfo);
+	//cout<<fileInfo.fFilename<<", "<<fileInfo.fIniDir<<endl;
+	directory = fileInfo.fIniDir;
+	
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	
+	//now open the file
+	ofstream output;
+	output.open(fileInfo.fFileName);
+	
+	cout<<"Be aware! Currently this function assumes that all runs have"<<endl;
+	cout<<" a phi width of +- 20 milli radians"<<endl;
+	
+	//now output the information line of the csv file
+	ouput<<"Run number, angle, state 1 cs, state 1 cs err, state 2 cs, state 2 cs err, ..."<<endl;
+	
+	//next we need to iterate through the set of runs
+	for(int i=0; i<numRuns; ++i)
+	{
+		//now retrieve the background subtracted spectrum for this run
+		TH2F* spec = testSubSpec(runs[i].runNumber);
+		if(spec==NULL)
+		{
+			return;
+		}
+	}
 }
 
 /******************************************
@@ -2444,3 +2487,5 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	//cout<<tempData.vdcEff<<endl;
 	conv.clear();
 }
+
+#endif
