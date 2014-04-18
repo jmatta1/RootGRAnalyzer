@@ -107,8 +107,10 @@ private:
 	string makeOrigShapeSpecName(int runN);
 	string makeFirstOrderShapeSpecName(int runN);
 	string makeFirstOrderShapeTreeName(int runN);
-	string makeSecondOrderShapeSpecName(int runN);
-	
+	string makeTRpBGSpecName(int runN)
+	string makeBGOnlySpecName(int runN)
+	string makeSubSpecName(int runN)
+	string makeScaledBGSpecName(int runN)
 
 	//functions for retrieving various things from files
 	TTree* retrieveTree(int runN);
@@ -122,9 +124,11 @@ private:
 	TH2F* retrieveOrigShapeSpec(int runN);
 	TH2F* retrieveFirstOrderShapeSpec(int runN);
 	TTree* retrieveFirstOrderShapeTree(int runN);
-	TH2F* retrieveSecondOrderShapeSpec(int runN);
-	
-	
+	TH2F* retrieveTRpBGSpec(int runN)
+	TH2F* retrieveBGOnlySpec(int runN)
+	TH2F* retrieveSubSpec(int runN)
+	TH2F* retrieveScaledBGSpec(int runN)
+
 	//functions for retrieving various things from files
 	//and then throwing out error messages if the pointer comes back null
 	TTree* testTree(int runN);
@@ -138,8 +142,10 @@ private:
 	TH2F* testOrigShapeSpec(int runN);
 	TH2F* testFirstOrderShapeSpec(int runN);
 	TTree* testFirstOrderShapeTree(int runN);
-	TH2F* testSecondOrderShapeSpec(int runN);
-	
+	TH2F* testTRpBGSpec(int runN)
+	TH2F* testBGOnlySpec(int runN)
+	TH2F* testSubSpec(int runN)
+	TH2F* testScaledBGSpec(int runN)
 	
 	//display functions for sequential displays
 	void updateDisplay(const UpdateCallType& tp);
@@ -282,20 +288,22 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	overallFrame->AddFrame(cutFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
 	
 	
-	//add the overall frame to the full frame	
-	fullFrame->AddFrame(overallFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
-	
-	
 	/******************************************
 	** Get Cross-Sections buttons
 	******************************************/
 	TGVerticalFrame *csFrame = new TGVerticalFrame(overallFrame, width, height);
 	TGLabel* csLabel = new TGLabel(csFrame, "Cross-Section Extraction");
 	csFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
-	//Get PIDs button
+	//Simple get cross-sections button
 	TGTextButton *scsBut = new TGTextButton(csFrame,"Simple CS Extraction (TBI)");
 	scsBut->Connect("Clicked()","MainWindow",this,"simpleGetCS()");
 	csFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	
+	//add the cs frame to the overall frame
+	overallFrame->AddFrame(csFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	
+	//add the overall frame to the full frame	
+	fullFrame->AddFrame(overallFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
 	
 	
 	/******************************************
@@ -1093,7 +1101,7 @@ void MainWindow::getFirstOrdShapes()
 		
 		
 		
-		//now construct the corrected histogram
+		//now construct histograms, the corrected one, the true + bg, the bg, the scaled bg and the sub
 		string histName = makeFirstOrderShapeSpecName( runs[i].runNumber );
 		ostringstream drawCmd;
 		drawCmd<<"Thcorr:Xfp>>"<<histName<<"(240,-600,600,300,-3,3)";
@@ -1130,13 +1138,18 @@ void MainWindow::showFirstOrdShapes()
 
 void MainWindow::showSubbedShapes()
 {
-
+	if(!checkUpToFrFile())
+	{	return; }
+	dispNum = 0;
+	dispFunc = ShapeDisp;
+	updateDisplay(Initial);
 }
 
 
 void MainWindow::simpleGetCS()
 {
-
+	if(!checkUpToFrFile())
+	{	return; }
 }
 
 /******************************************
@@ -1314,7 +1327,7 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 	//test to make certain that everything is there
 	if(origHist==NULL || regions==NULL)
 	{
-		cout<<"Backing out of display mode"<<endl;
+		cout<<"Backing out of display mode"<<endmakeTRpBGSpecNamel;
 		dispNum = 0;
 		dispFunc = None;
 		updateBGDisp(Final);//to cleanup static vars
@@ -1433,6 +1446,55 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 	whiteBoard->Update();
 }
 
+void MainWindow::updateShapeDisp(const UpdateCallType& tp)
+{
+	static TH2F* origShape;
+	static TH2F* newShape;
+	switch(tp)
+	{
+	case Initial:
+		origShape = NULL;
+		newShape = NULL;
+		whiteBoard->Clear();
+		whiteBoard->Update();
+		break;
+	case Normal:
+		if(origShape!=NULL)
+		{
+			delete origShape;
+			origShape=NULL;
+		}
+		if(newShape!=NULL)
+		{
+			delete newShape;
+			newShape=NULL;
+		}
+		whiteBoard->Clear();
+		whiteBoard->Update();
+		break;
+	case Final:
+		cout<<"Done with display, erasing whiteboard"<<endl;
+		if(origShape!=NULL)
+		{
+			delete origShape;
+			origShape=NULL;
+		}
+		if(newShape!=NULL)
+		{
+			delete newShape;
+			newShape=NULL;
+		}
+		whiteBoard->Clear();
+		whiteBoard->Update();
+		return;
+		break;	
+	}
+	
+	origShape = testOrigShapeSpec(runs[dispNum].runNumber);
+	newShape = testFirstOrderShapeSpec(runs[dispNum].runNumber);
+	
+}
+
 void MainWindow::updateDisplay(const UpdateCallType& tp)
 {
 	//I was using a switch statement for this but for some reason the interpretter was not handling it correctly
@@ -1451,6 +1513,11 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 	{
 		updateShapeDisp(tp);
 		return;
+	}
+	else if(dispFunc == subbedSpecs)
+	{
+		updateSubDisp(tp);
+		return
 	}
 	else if(dispFunc == None)
 	{
@@ -1896,26 +1963,110 @@ TTree* MainWindow::testFirstOrderShapeTree(int runN)
 	}
 }
 
-string MainWindow::makeSecondOrderShapeSpecName(int runN)
+string MainWindow::makeTRpBGSpecName(int runN)
 {
 	ostringstream bgNamer;
-	bgNamer<<"h2SecondOrderShapeSpec"<<runN;
+	bgNamer<<"h2TrpBG"<<runN;
 	string temp = bgNamer.str();
 	return temp;
 }
 
-TH2F* MainWindow::retrieveSecondOrderShapeSpec(int runN)
+TH2F* MainWindow::retrieveTRpBGSpec(int runN)
 {
-	string histName = makeSecondOrderShapeSpecName(runN);
+	string histName = makeTRpBGSpecName(runN);
 	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
 }
 
-TH2F* MainWindow::testSecondOrderShapeSpec(int runN)
+TH2F* MainWindow::testTRpBGSpec(int runN)
 {
-	TH2F* temp = retrieveSecondOrderShapeSpec(runN);
+	TH2F* temp = retrieveTRpBGSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a an original shape spectrum, you might have the wrong aux file loaded"<<endl;
+		cout<<"Missing a True+BG Theta vs Xfp spectrum, you might have the wrong aux file loaded"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+string MainWindow::makeBGOnlySpecName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"h2BgOnly"<<runN;
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TH2F* MainWindow::retrieveBGOnlySpec(int runN)
+{
+	string histName = makeBGOnlySpecName(runN);
+	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
+}
+
+TH2F* MainWindow::testBGOnlySpec(int runN)
+{
+	TH2F* temp = retrieveBGOnlySpec(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a BG Theta vs Xfp spectrum, you might have the wrong aux file loaded"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+string MainWindow::makeScaledBGSpecName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"h2ScaledBg"<<runN;
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TH2F* MainWindow::retrieveScaledBGSpec(int runN)
+{
+	string histName = makeScaledBGSpecName(runN);
+	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
+}
+
+TH2F* MainWindow::testScaledBGSpec(int runN)
+{
+	TH2F* temp = retrieveScaledBGSpec(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a BG Theta vs Xfp spectrum, you might have the wrong aux file loaded"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+string MainWindow::makeSubSpecName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"h2SubSpec"<<runN;
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TH2F* MainWindow::retrieveSubSpec(int runN)
+{
+	string histName = makeSubSpecName(runN);
+	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
+}
+
+TH2F* MainWindow::testSubSpec(int runN)
+{
+	TH2F* temp = retrieveSubSpec(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a Subtracted Theta vs Xfp spectrum, you might have the wrong aux file loaded"<<endl;
 		return NULL;
 	}
 	else
