@@ -95,6 +95,8 @@ private:
 	bool checkUpToAuxFile();
 	bool checkUpToFrFile();
 	
+	double calculateBGNorm(int runN);
+	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
 	string makePIDCutName(int runN);
@@ -1098,30 +1100,121 @@ void MainWindow::getFirstOrdShapes()
 		frnd->Write(treeName.c_str(),TObject::kOverwrite);
 		TFile* file = frnd->GetCurrentFile();
 		file->Flush();
+
 		
+		//now construct histograms, the shape corrected one, the true + bg, the bg, the scaled bg and the sub
+		int runN = runs[i].runNumber;
 		
+		//first get the bggraph and the pid cut
+		TGraph* bgGraph = testBGGraph(runN);
+		TCutG* pidCut = testPIDCut(runN);
 		
-		//now construct histograms, the corrected one, the true + bg, the bg, the scaled bg and the sub
-		string histName = makeFirstOrderShapeSpecName( runs[i].runNumber );
-		ostringstream drawCmd;
-		drawCmd<<"Thcorr:Xfp>>"<<histName<<"(240,-600,600,300,-3,3)";
-		string drawStr = drawCmd.str();
-		frnd->Draw(drawStr.c_str(), RayCut, "colz");
-		TH2F* tempH2 = reinterpret_cast<TH2F*>(gDirectory->Get(histName.c_str()));
-		ostringstream histTitler;
-		histTitler<<"Run "<<runs[i].runNumber<<" Th_Corr1:X_fp( Rayid==0 )";
+		if(bgGraph == NULL || pidCut == NULL)
+		{
+			return;
+		}
+		
+		// now do stuff with the bgGraph
+		double bgPts = bgGraph->GetX();
+		
+		//now get the bg normalization
+		double bgNorm = calculateBGNorm(bgGraph);
+		
+		//make all the histogram names
+		string shapeHistName = makeFirstOrderShapeSpecName( runN );
+		string trHistName = makeTRpBGSpecName( runN );
+		string bgHistName = makeBGOnlySpecName( runN );
+		string scaledBgHistName = makeScaledBGSpecName( runN );
+		string subHistName = makeSubSpecName( runN );
+		
+		//construct the histogram titles
+		ostringstream titler;
+		titler<<"Run "<<runN<<" Thcorr:Xfp {No Cuts}";
+		string shapeHistTitle = titler.str();
+		titler.str("");
+		
+		titler<<"Run "<<runN<<" Thcorr:Xfp {Rayid==0 && PID && True Region}";
+		string trHistTitle = titler.str();
+		titler.str("");
+		
+		titler<<"Run "<<runN<<" Thcorr:Xfp {Rayid==0 && PID && Background Region}";
+		string bgHistTitle = titler.str();
+		titler.str("");
+		
+		titler<<"Run "<<runN<<" Scaled Thcorr:Xfp {Rayid==0 && PID && Background Region}";
+		string scaledBGHistTitle = titler.str();
+		titler.str("");
+		
+		titler<<"Run "<<runN<<" (True + BG) - Scaled BG Thcorr:Xfp";
+		string subHistTitle = titler.str();
+		
+		//make the actual histograms to hold things
+		TH2F* shapeHist = new TH2F(shapeHistName.c_str(), shapeHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
+		TH2F* trHist = new TH2F(trHistName.c_str(), trHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
+		TH2F* bgHist = new TH2F(bgHistName.c_str(), bgHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
+		TH2F* scaledBGHist = new TH2F(scaledBgHistName.c_str(), scaledBGHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
+		TH2F* subHist = new TH2F(subHistName.c_str(), subHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
+		
+		//now set up the branches of our new tree to retrieve everything
+		theta = 0.0;
+		xfp = 0.0;
+		float yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
+		frnd->SetBranchAddress("Thcorr",&theta);
+		frnd->SetBranchAddress("Xfp",&xfp);
+		frnd->SetBranchAddress("Yfp",&yfp);
+		frnd->SetBranchAddress("Pi1",&pi1);
+		frnd->SetBranchAddress("Pi2",&pi2);
+		frnd->SetBranchAddress("Rayid",&rayid);
+		
+		//now fill the histograms other than the subtracted spectrum
+		for(Long64_t j = 0; j<numEnts; ++j)
+		{
+			//first get the entry
+			frnd->GetEntry(j);
+			//check the rayid cut as it is applied to everything
+			if( rayid == 0)
+			{
+				//first fill the shape spectrum as it has no other cuts applied
+				shapeHist->Fill(xfp,theta);
+				//now test for the PID cut as everything else has that
+				if( 1 == (pidCut->IsInside(pi2,pi1)) )
+				{
+					//test to see if it is in the background region
+					if( (bgPts[0]<yfp && yfp<bgPts[1]) || (bgPts[2]<yfp && yfp<bgPts[3]) )
+					{
+						//increment the bg spectrum
+						bgHist->Fill(xfp,theta);
+						//increment the scaled bg spectrum using the scaling factor as the weight
+						scaledBGhist->Fill(xfp,theta,bgNorm);
+					}//otherwise test if we are in the true region
+					else if( bgPts[1]<=yfp && yfp<=bgPts[2] )
+					{
+						//increment the tr+bg spectrum
+						trHist->Fill(xfp,theta);
+					}
+				}
+			}
+		}
+		
+		//now the spectra should be filled so make the subtracted spectrum
+		subHist->Add(trHist, scaledBGHist, 1, -1);
+		
+		//now save the spectra
 		auxFile->cd();
-		tempH2->Write(histName.c_str(),TObject::kOverwrite);
-		whiteBoard->SetLogz(1);
-		whiteBoard->Update();
-		cout<<"Done building friend tree, drawing new spec for 5 seconds\n"<<endl;
-		sys->Sleep(5000);
-		whiteBoard->Clear();
-		whiteBoard->Update();
+		shapeHist->Write(shapeHistName.c_str(),TObject::kOverwrite);
+		trHist->Write(trHistName.c_str(),TObject::kOverwrite);
+		bgHist->Write(bgHistName.c_str(),TObject::kOverwrite);
+		scaledBGHist->Write(scaledBgHistName.c_str(),TObject::kOverwrite);
+		subHist->Write(subHistName.c_str(),TObject::kOverwrite);
+		
+		
+		cout<<"Done building friend tree and assorted necessary spectra"<<endl;
 		
 		delete tempH2;
 		delete frnd;
 		delete orig;
+		delete bgGraph;
+		delete pidCut;
 	}
 	delete[] centers;
 	cout<<"Done performing first order corrections"<<endl;
@@ -1327,7 +1420,7 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 	//test to make certain that everything is there
 	if(origHist==NULL || regions==NULL)
 	{
-		cout<<"Backing out of display mode"<<endmakeTRpBGSpecNamel;
+		cout<<"Backing out of display mode"<<endl;
 		dispNum = 0;
 		dispFunc = None;
 		updateBGDisp(Final);//to cleanup static vars
@@ -2075,6 +2168,15 @@ TH2F* MainWindow::testSubSpec(int runN)
 	}
 }
 
+double MainWindow::calculateBGNorm(TGraph* regions)
+{
+	//first get the x values of the graph
+	double* xVals = regions->GetX();
+	double bgWidth = ( (xVals[1]-xVals[0]) + (xVals[3]-xVals[2]) );
+	double trWidth = ( xVals[2]-xVals[1] );
+	return (trWidth/bgWidth)
+}
+
 bool MainWindow::checkUpToRunData()
 {
 	if ( runs == NULL )
@@ -2092,19 +2194,13 @@ bool MainWindow::checkUpToRunData()
 
 bool MainWindow::checkUpToMainFile()
 {
-	if ( runs == NULL )
+	if( !checkUpToRunData() )
 	{
-		cout<<"\nLoad Run Data first"<<endl;
 		return false;
 	}
 	else if ( mainFile == NULL )
 	{
 		cout<<"\nLoad/create combined file first"<<endl;
-		return false;
-	}
-	else if (dispFunc != None)
-	{
-		cout<<"\nEnd display mode first"<<endl;
 		return false;
 	}
 	return true;
@@ -2112,24 +2208,13 @@ bool MainWindow::checkUpToMainFile()
 
 bool MainWindow::checkUpToAuxFile()
 {
-	if ( runs == NULL )
+	if( !checkUpToMainFile() )
 	{
-		cout<<"\nLoad Run Data first"<<endl;
-		return false;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
 		return false;
 	}
 	else if ( auxFile == NULL )
 	{
 		cout<<"\nLoad/create auxiliary file first"<<endl;
-		return false;
-	}
-	else if (dispFunc != None)
-	{
-		cout<<"\nEnd display mode first"<<endl;
 		return false;
 	}
 	return true;
@@ -2137,29 +2222,13 @@ bool MainWindow::checkUpToAuxFile()
 
 bool MainWindow::checkUpToFrFile()
 {
-	if ( runs == NULL )
+	if( !checkUpToAuxFile() )
 	{
-		cout<<"\nLoad Run Data first"<<endl;
-		return false;
-	}
-	else if ( mainFile == NULL )
-	{
-		cout<<"\nLoad/create combined file first"<<endl;
-		return false;
-	}
-	else if ( auxFile == NULL )
-	{
-		cout<<"\nLoad/create auxiliary file first"<<endl;
 		return false;
 	}
 	else if( frFile == NULL )
 	{
 		cout<<"\nLoad/create a friend file first"<<endl;
-		return false;
-	}
-	else if (dispFunc != None)
-	{
-		cout<<"\nEnd display mode first"<<endl;
 		return false;
 	}
 	return true;
