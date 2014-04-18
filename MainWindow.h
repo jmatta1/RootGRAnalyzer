@@ -70,6 +70,7 @@ public:
 	//shape operations
 	void getFirstOrdShapes();
 	void showFirstOrdShapes();
+	void makeBGSubSpecs();
 	void showSubbedShapes();
 
 	//cs operations
@@ -109,10 +110,10 @@ private:
 	string makeOrigShapeSpecName(int runN);
 	string makeFirstOrderShapeSpecName(int runN);
 	string makeFirstOrderShapeTreeName(int runN);
-	string makeTRpBGSpecName(int runN)
-	string makeBGOnlySpecName(int runN)
-	string makeSubSpecName(int runN)
-	string makeScaledBGSpecName(int runN)
+	string makeTRpBGSpecName(int runN);
+	string makeBGOnlySpecName(int runN);
+	string makeSubSpecName(int runN);
+	string makeScaledBGSpecName(int runN);
 
 	//functions for retrieving various things from files
 	TTree* retrieveTree(int runN);
@@ -126,10 +127,10 @@ private:
 	TH2F* retrieveOrigShapeSpec(int runN);
 	TH2F* retrieveFirstOrderShapeSpec(int runN);
 	TTree* retrieveFirstOrderShapeTree(int runN);
-	TH2F* retrieveTRpBGSpec(int runN)
-	TH2F* retrieveBGOnlySpec(int runN)
-	TH2F* retrieveSubSpec(int runN)
-	TH2F* retrieveScaledBGSpec(int runN)
+	TH2F* retrieveTRpBGSpec(int runN);
+	TH2F* retrieveBGOnlySpec(int runN);
+	TH2F* retrieveSubSpec(int runN);
+	TH2F* retrieveScaledBGSpec(int runN);
 
 	//functions for retrieving various things from files
 	//and then throwing out error messages if the pointer comes back null
@@ -144,10 +145,10 @@ private:
 	TH2F* testOrigShapeSpec(int runN);
 	TH2F* testFirstOrderShapeSpec(int runN);
 	TTree* testFirstOrderShapeTree(int runN);
-	TH2F* testTRpBGSpec(int runN)
-	TH2F* testBGOnlySpec(int runN)
-	TH2F* testSubSpec(int runN)
-	TH2F* testScaledBGSpec(int runN)
+	TH2F* testTRpBGSpec(int runN);
+	TH2F* testBGOnlySpec(int runN);
+	TH2F* testSubSpec(int runN);
+	TH2F* testScaledBGSpec(int runN);
 	
 	//display functions for sequential displays
 	void updateDisplay(const UpdateCallType& tp);
@@ -281,8 +282,13 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	showShapesBut->Connect("Clicked()","MainWindow",this,"showFirstOrdShapes()");
 	cutFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
+	//make bg sub spectra button
+	TGTextButton *makeBGSubBut = new TGTextButton(cutFrame,"Make BG-Sub Spectra");
+	makeBGSubBut->Connect("Clicked()","MainWindow",this,"makeBGSubSpecs()");
+	cutFrame->AddFrame(makeBGSubBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	
 	//display bgsub shapes button
-	TGTextButton *showbgSubBut = new TGTextButton(cutFrame,"Show BG-sub Shapes (TBI)");
+	TGTextButton *showbgSubBut = new TGTextButton(cutFrame,"Show BG-sub Shapes");
 	showbgSubBut->Connect("Clicked()","MainWindow",this,"showSubbedShapes()");
 	cutFrame->AddFrame(showbgSubBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
 	
@@ -503,7 +509,7 @@ void MainWindow::buildBigFile()
 	static TString directory(".");
 	TGFileInfo fileInfo;
 	fileInfo.SetMultipleSelection(false);
-	fileInfo.fFileTypes = rootFileType;
+	fileInfo.fFileTypes = combRootFileType;
 	fileInfo.fIniDir = StrDup(directory);
 	
 	//make the open file dialog
@@ -516,9 +522,9 @@ void MainWindow::buildBigFile()
 	}
 	//make sure the file name ends with the extension
 	string temp = string(fileInfo.fFilename);
-	if( (temp.size()-5) != ( temp.rfind(".root") ) )
+	if( (temp.size()-11) != ( temp.rfind("_merge.root") ) )
 	{
-		temp.append(".root");
+		temp.append("_merge.root");
 	}
 	directory = fileInfo.fIniDir;
 	
@@ -594,7 +600,7 @@ void MainWindow::openBigFile()
 	static TString directory(".");
 	TGFileInfo fileInfo;
 	fileInfo.SetMultipleSelection(false);
-	fileInfo.fFileTypes = rootFileType;
+	fileInfo.fFileTypes = combRootFileType;
 	fileInfo.fIniDir = StrDup(directory);
 	
 	//make the open file dialog
@@ -607,9 +613,9 @@ void MainWindow::openBigFile()
 	}
 	//make sure the file name ends with the extension
 	string temp = string(fileInfo.fFilename);
-	if( (temp.size()-5) != ( temp.rfind(".root") ) )
+	if( (temp.size()-11) != ( temp.rfind("_merge.root") ) )
 	{
-		temp.append(".root");
+		temp.append("_merge.root");
 	}
 	directory = fileInfo.fIniDir;
 	
@@ -631,7 +637,7 @@ void MainWindow::makeAuxFile()
 	static TString directory(".");
 	TGFileInfo fileInfo;
 	fileInfo.SetMultipleSelection(false);
-	fileInfo.fFileTypes = rootFileType;
+	fileInfo.fFileTypes = auxRootFileType;
 	fileInfo.fIniDir = StrDup(directory);
 	
 	//make the open file dialog
@@ -644,9 +650,9 @@ void MainWindow::makeAuxFile()
 	}
 	//make sure the file name ends with the extension
 	string temp = string(fileInfo.fFilename);
-	if( (temp.size()-5) != ( temp.rfind(".root") ) )
+	if( (temp.size()-9) != ( temp.rfind("_aux.root") ) )
 	{
-		temp.append(".root");
+		temp.append("_aux.root");
 	}
 	directory = fileInfo.fIniDir;
 	
@@ -668,7 +674,7 @@ void MainWindow::openAuxFile()
 	static TString directory(".");
 	TGFileInfo fileInfo;
 	fileInfo.SetMultipleSelection(false);
-	fileInfo.fFileTypes = rootFileType;
+	fileInfo.fFileTypes = auxRootFileType;
 	fileInfo.fIniDir = StrDup(directory);
 	
 	//make the open file dialog
@@ -681,9 +687,9 @@ void MainWindow::openAuxFile()
 	}
 	//make sure the file name ends with the extension
 	string temp = string(fileInfo.fFilename);
-	if( (temp.size()-5) != ( temp.rfind(".root") ) )
+	if( (temp.size()-9) != ( temp.rfind("_aux.root") ) )
 	{
-		temp.append(".root");
+		temp.append("_aux.root");
 	}
 	directory = fileInfo.fIniDir;
 	
@@ -706,7 +712,7 @@ void MainWindow::makeFriendFile()
 	static TString directory(".");
 	TGFileInfo fileInfo;
 	fileInfo.SetMultipleSelection(false);
-	fileInfo.fFileTypes = rootFileType;
+	fileInfo.fFileTypes = frRootFileType;
 	fileInfo.fIniDir = StrDup(directory);
 	
 	//make the open file dialog
@@ -719,9 +725,9 @@ void MainWindow::makeFriendFile()
 	}
 	//make sure the file name ends with the extension
 	string temp = string(fileInfo.fFilename);
-	if( (temp.size()-5) != ( temp.rfind(".root") ) )
+	if( (temp.size()-10) != ( temp.rfind("_frnd.root") ) )
 	{
-		temp.append(".root");
+		temp.append("_frnd.root");
 	}
 	directory = fileInfo.fIniDir;
 	
@@ -744,7 +750,7 @@ void MainWindow::openFriendFile()
 	static TString directory(".");
 	TGFileInfo fileInfo;
 	fileInfo.SetMultipleSelection(false);
-	fileInfo.fFileTypes = rootFileType;
+	fileInfo.fFileTypes = frRootFileType;
 	fileInfo.fIniDir = StrDup(directory);
 	
 	//make the open file dialog
@@ -757,9 +763,9 @@ void MainWindow::openFriendFile()
 	}
 	//make sure the file name ends with the extension
 	string temp = string(fileInfo.fFilename);
-	if( (temp.size()-5) != ( temp.rfind(".root") ) )
+	if( (temp.size()-10) != ( temp.rfind("_frnd.root") ) )
 	{
-		temp.append(".root");
+		temp.append("_frnd.root");
 	}
 	directory = fileInfo.fIniDir;
 	
@@ -802,6 +808,7 @@ void MainWindow::getPIDCuts()
 		tempH2->SetTitle(histTitle.str().c_str());
 		auxFile->cd();
 		tempH2->Write(histName.c_str(),TObject::kOverwrite);
+		gPad->SetLogy(0);
 		whiteBoard->SetLogz(1);
 		whiteBoard->Update();
 		cout<<"Please give PID cut."<<endl;
@@ -861,6 +868,8 @@ void MainWindow::getBGCuts()
 	cout<<"The points are:\nLower bnd of the lower bg region\nUpper bnd of the lower bg region (also the lower bnd of the true region)"<<endl;
 	cout<<"Lower bnd of the upper bg region (also the upper bnd of the true region)\nUpper bnd of the upper bg region"<<endl;
 	cout<<"Only the first 4 clicks will be used, double click when done selecting regions\n"<<endl;
+	cout<<"\nWARNING: If you have already constructed bg subtracted histograms"<<endl;
+	cout<<"you will need to reconstruct them after running this function"<<endl;
 	
 	for(int i=0; i<numRuns; ++i)
 	{
@@ -981,6 +990,8 @@ void MainWindow::getFirstOrdShapes()
 	
 	cout<<"\nWhen prompted click along the top and bottom edges of the high counts region of the spectrum"<<endl;
 	cout<<"You must click at least 4 times, preferably more\n"<<endl;
+	cout<<"\nWARNING: If you have already constructed bg subtracted histograms"<<endl;
+	cout<<"you will need to reconstruct them after running this function"<<endl;
 	
 	double* centers = new double[3*numRuns];
 	
@@ -1005,6 +1016,7 @@ void MainWindow::getFirstOrdShapes()
 		tempH2->SetTitle(histTitler.str().c_str());
 		auxFile->cd();
 		tempH2->Write(histName.c_str(),TObject::kOverwrite);
+		whiteBoard->SetLogy(0);
 		whiteBoard->SetLogz(1);
 		whiteBoard->Update();
 		cout<<"Give Top Edge"<<endl;
@@ -1050,6 +1062,8 @@ void MainWindow::getFirstOrdShapes()
 	
 	for(int i=0; i<numRuns; ++i)
 	{
+		//force a new line
+		cout<<"\n";
 		//grab the tree, we do not need to test it because we tested it before so we
 		//simply use retrieveTree rather than testTree
 		TTree* orig = retrieveTree( runs[i].runNumber );
@@ -1100,10 +1114,43 @@ void MainWindow::getFirstOrdShapes()
 		frnd->Write(treeName.c_str(),TObject::kOverwrite);
 		TFile* file = frnd->GetCurrentFile();
 		file->Flush();
-
 		
-		//now construct histograms, the shape corrected one, the true + bg, the bg, the scaled bg and the sub
+		cout<<"Finished Constructing Friend Tree"<<endl;
+		
+		delete frnd;
+		delete orig;
+	}
+	delete[] centers;
+	cout<<"Done performing first order corrections"<<endl;
+}
+
+void MainWindow::showFirstOrdShapes()
+{
+	if(!checkUpToFrFile())
+	{	return; }
+	dispNum = 0;
+	dispFunc = ShapeDisp;
+	updateDisplay(Initial);
+}
+
+void MainWindow::makeBGSubSpecs()
+{
+	if( !checkUpToFrFile() )
+	{	return; }
+	
+	cout<<"\n";
+	
+	//loop across loaded runs
+	for(int i=0; i<numRuns; ++i)
+	{
+		cout<<"Preparing to construct specta for run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
 		int runN = runs[i].runNumber;
+		//load the friend tree
+		TTree* frnd = testFirstOrderShapeTree( runN );
+		if(frnd==NULL)
+		{	return; }
+		
+		//construct histograms, the shape corrected one, the true + bg, the bg, the scaled bg and the sub
 		
 		//first get the bggraph and the pid cut
 		TGraph* bgGraph = testBGGraph(runN);
@@ -1115,7 +1162,7 @@ void MainWindow::getFirstOrdShapes()
 		}
 		
 		// now do stuff with the bgGraph
-		double bgPts = bgGraph->GetX();
+		double* bgPts = bgGraph->GetX();
 		
 		//now get the bg normalization
 		double bgNorm = calculateBGNorm(bgGraph);
@@ -1137,15 +1184,15 @@ void MainWindow::getFirstOrdShapes()
 		string trHistTitle = titler.str();
 		titler.str("");
 		
-		titler<<"Run "<<runN<<" Thcorr:Xfp {Rayid==0 && PID && Background Region}";
+		titler<<"Run "<<runN<<" Thcorr:Xfp {Rayid==0 && PID && BG Region}";
 		string bgHistTitle = titler.str();
 		titler.str("");
 		
-		titler<<"Run "<<runN<<" Scaled Thcorr:Xfp {Rayid==0 && PID && Background Region}";
+		titler<<"Run "<<runN<<" Thcorr:Xfp Scaled {Rayid==0 && PID && BG Region}";
 		string scaledBGHistTitle = titler.str();
 		titler.str("");
 		
-		titler<<"Run "<<runN<<" (True + BG) - Scaled BG Thcorr:Xfp";
+		titler<<"Run "<<runN<<" (True - Scaled BG) Thcorr:Xfp";
 		string subHistTitle = titler.str();
 		
 		//make the actual histograms to hold things
@@ -1156,9 +1203,7 @@ void MainWindow::getFirstOrdShapes()
 		TH2F* subHist = new TH2F(subHistName.c_str(), subHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
 		
 		//now set up the branches of our new tree to retrieve everything
-		theta = 0.0;
-		xfp = 0.0;
-		float yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
+		float theta = 0.0, xfp = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
 		frnd->SetBranchAddress("Thcorr",&theta);
 		frnd->SetBranchAddress("Xfp",&xfp);
 		frnd->SetBranchAddress("Yfp",&yfp);
@@ -1166,6 +1211,7 @@ void MainWindow::getFirstOrdShapes()
 		frnd->SetBranchAddress("Pi2",&pi2);
 		frnd->SetBranchAddress("Rayid",&rayid);
 		
+		Long64_t numEnts = (frnd->GetEntries());
 		//now fill the histograms other than the subtracted spectrum
 		for(Long64_t j = 0; j<numEnts; ++j)
 		{
@@ -1185,7 +1231,7 @@ void MainWindow::getFirstOrdShapes()
 						//increment the bg spectrum
 						bgHist->Fill(xfp,theta);
 						//increment the scaled bg spectrum using the scaling factor as the weight
-						scaledBGhist->Fill(xfp,theta,bgNorm);
+						scaledBGHist->Fill(xfp,theta,bgNorm);
 					}//otherwise test if we are in the true region
 					else if( bgPts[1]<=yfp && yfp<=bgPts[2] )
 					{
@@ -1208,26 +1254,16 @@ void MainWindow::getFirstOrdShapes()
 		subHist->Write(subHistName.c_str(),TObject::kOverwrite);
 		
 		auxFile->Flush();
-		
-		cout<<"Done building friend tree and assorted necessary spectra"<<endl;
-		
-		delete tempH2;
-		delete frnd;
-		delete orig;
+		delete frnd; 
+		delete shapeHist;
+		delete trHist;
+		delete bgHist;
+		delete scaledBGHist;
+		delete subHist;
 		delete bgGraph;
 		delete pidCut;
 	}
-	delete[] centers;
-	cout<<"Done performing first order corrections"<<endl;
-}
-
-void MainWindow::showFirstOrdShapes()
-{
-	if(!checkUpToFrFile())
-	{	return; }
-	dispNum = 0;
-	dispFunc = ShapeDisp;
-	updateDisplay(Initial);
+	cout<<"Done constructing histograms"<<endl;
 }
 
 void MainWindow::showSubbedShapes()
@@ -1255,15 +1291,15 @@ void MainWindow::updatePIDDisp(const UpdateCallType& tp)
 {
 	static TH2F* hist;
 	static TCutG* tempCG;
-	switch(tp)
+	if(tp==Initial)
 	{
-	case Initial:
 		hist = NULL;
 		tempCG = NULL;
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		break;
-	case Normal:
+	}
+	else if(tp==Normal)
+	{
 		if(hist!=NULL)
 		{
 			delete hist;
@@ -1276,8 +1312,9 @@ void MainWindow::updatePIDDisp(const UpdateCallType& tp)
 		}
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		break;
-	case Final:
+	}
+	else if(tp==Final)
+	{
 		cout<<"Done with display, erasing whiteboard"<<endl;
 		if(hist!=NULL)
 		{
@@ -1311,6 +1348,7 @@ void MainWindow::updatePIDDisp(const UpdateCallType& tp)
 	whiteBoard->cd(1);
 	hist->Draw("colz");
 	gPad->SetLogz(1);
+	gPad->SetLogy(0);
 	tempCG->Draw("same");
 	whiteBoard->Update();
 	whiteBoard->cd(2);
@@ -1320,6 +1358,7 @@ void MainWindow::updatePIDDisp(const UpdateCallType& tp)
 	string options = optBuild.str();
 	hist->Draw( options.c_str() );
 	gPad->SetLogz(1);
+	gPad->SetLogy(0);
 	whiteBoard->Update();
 	whiteBoard->cd(1);
 }
@@ -1332,9 +1371,8 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 	static TH1F* hiHist;
 	static TGraph* regions;
 	static TPaveText* text;
-	switch(tp)
+	if(tp==Initial)
 	{
-	case Initial:
 		origHist = NULL;
 		lowHist = NULL;
 		midHist = NULL;
@@ -1343,8 +1381,9 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 		text = NULL;
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		break;
-	case Normal:
+	}
+	else if(tp==Normal)
+	{
 		if(origHist!=NULL)
 		{
 			delete origHist;
@@ -1377,8 +1416,9 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 		}
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		break;
-	case Final:
+	}
+	else if(tp==Final)
+	{
 		cout<<"Done with display, erasing whiteboard"<<endl;
 		if(origHist!=NULL)
 		{
@@ -1484,15 +1524,15 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 {
 	static TH2F* origShape;
 	static TH2F* newShape;
-	switch(tp)
+	if(tp==Initial)
 	{
-	case Initial:
 		origShape = NULL;
 		newShape = NULL;
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		break;
-	case Normal:
+	}
+	else if(tp==Normal)
+	{
 		if(origShape!=NULL)
 		{
 			delete origShape;
@@ -1505,8 +1545,9 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 		}
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		break;
-	case Final:
+	}
+	else if(tp==Final)
+	{
 		cout<<"Done with display, erasing whiteboard"<<endl;
 		if(origShape!=NULL)
 		{
@@ -1539,8 +1580,10 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 	whiteBoard->Divide(2,1);
 	whiteBoard->cd(1);
 	origShape->Draw("colz");
+	gPad->SetLogy(0);
 	gPad->SetLogz(1);
 	whiteBoard->cd(2);
+	gPad->SetLogy(0);
 	newShape->Draw("colz");
 	gPad->SetLogz(1);
 	whiteBoard->Update();
@@ -1552,17 +1595,18 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 	static TH2F* bgSpec;
 	static TH2F* scaledBgSpec;
 	static TH2F* subSpec;
-	switch(tp)
+	if(tp==Initial)
 	{
-	case Initial:
 		trueSpec = NULL;
 		bgSpec = NULL;
 		scaledBgSpec = NULL;
 		subSpec = NULL;
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		break;
-	case Normal:
+		gStyle->SetOptStat();
+	}
+	else if(tp==Normal)
+	{
 		if(trueSpec!=NULL)
 		{
 			delete trueSpec;
@@ -1585,8 +1629,9 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 		}
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		break;
-	case Final:
+	}
+	else if(tp==Final)
+	{
 		cout<<"Done with display, erasing whiteboard"<<endl;
 		if(trueSpec!=NULL)
 		{
@@ -1608,6 +1653,7 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 			delete subSpec;
 			subSpec=NULL;
 		}
+		gStyle->SetOptStat(0);
 		whiteBoard->Clear();
 		whiteBoard->Update();
 		return;
@@ -1617,12 +1663,12 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 	int runN = runs[dispNum].runNumber;
 	
 	//retrieve the spectra
-	trueSpec = testTRpBGSpec( runN )
-	bgSpec = testBGOnlySpec( runN )
-	scaledBgSpec = testSubSpec( runN )
-	subSpec = testScaledBGSpec( runN )
+	trueSpec = testTRpBGSpec( runN );
+	bgSpec = testBGOnlySpec( runN );
+	scaledBgSpec = testScaledBGSpec( runN );
+	subSpec = testSubSpec( runN );
 	
-	if(	trueSpec == NULL || bgSpec == NULL || scaledBgSpec == NULL || subSpec == NULL || )
+	if(	trueSpec == NULL || bgSpec == NULL || scaledBgSpec == NULL || subSpec == NULL )
 	{	
 		cout<<"Backing out of display mode"<<endl;
 		dispNum = 0;
@@ -1634,14 +1680,22 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 	//now draw everything
 	whiteBoard->Divide(2,2);
 	whiteBoard->cd(1);
-	trueSpec->Draw("colz");	
+	trueSpec->Draw("colz");
+	gPad->SetLogy(0);
+	gPad->SetLogz(1);
 	whiteBoard->cd(2);
 	bgSpec->Draw("colz");
+	gPad->SetLogy(0);
+	gPad->SetLogz(1);
 	whiteBoard->cd(3);
 	scaledBgSpec->Draw("colz");
+	gPad->SetLogy(0);
+	gPad->SetLogz(1);
 	whiteBoard->cd(4);
 	subSpec->Draw("colz");
-	
+	gPad->SetLogy(0);
+	gPad->SetLogz(1);
+	whiteBoard->Update();
 }
 
 void MainWindow::updateDisplay(const UpdateCallType& tp)
@@ -1666,7 +1720,7 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 	else if(dispFunc == SubbedSpecs)
 	{
 		updateSubDisp(tp);
-		return
+		return;
 	}
 	else if(dispFunc == None)
 	{
@@ -2230,7 +2284,7 @@ double MainWindow::calculateBGNorm(TGraph* regions)
 	double* xVals = regions->GetX();
 	double bgWidth = ( (xVals[1]-xVals[0]) + (xVals[3]-xVals[2]) );
 	double trWidth = ( xVals[2]-xVals[1] );
-	return (trWidth/bgWidth)
+	return (trWidth/bgWidth);
 }
 
 bool MainWindow::checkUpToRunData()
