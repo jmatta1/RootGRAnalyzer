@@ -1,8 +1,14 @@
 const char *csvDataType[] = { "Run Data",      "*.csv",
                                0,               0 };
 
-const char *rootFileType[] = { "Root File",     "*.root",
-                               0,               0 };
+const char *combRootFileType[] = { "Root File",     "*_merge.root",
+                                    0,               0 };
+
+const char *auxRootFileType[] = { "Aux Root File",     "*_aux.root",
+                                   0,                   0 };
+
+const char *frRootFileType[] = { "Friend Root File",     "*_frnd.root",
+                                  0,                      0 };
 
 
 struct RunData
