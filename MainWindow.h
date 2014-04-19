@@ -11,6 +11,7 @@ using std::istringstream;
 using std::ofstream;
 using std::ifstream;
 using std::cout;
+using std::cin;
 using std::endl;
 using std::flush;
 using std::ios_base;
@@ -28,6 +29,7 @@ using std::ios_base;
 #include<TObject.h>
 #include<TCutG.h>
 #include<TCut.h>
+#include<TLine.h>
 #include<TGLabel.h>
 #include<TH2F.h>
 #include<TH1F.h>
@@ -37,6 +39,7 @@ using std::ios_base;
 #include<TPaveText.h>
 #include<TSystem.h>
 #include<TFitResult.h>
+#include<TMath.h>
 
 //my includes
 #include"guiSupport.h"
@@ -99,6 +102,8 @@ private:
 	bool checkUpToFrFile();
 	
 	double calculateBGNorm(int runN);
+	
+	double calcCrossSection(double counts, const RunData* data, double thWidth, double phWidth);
 	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
@@ -1307,11 +1312,39 @@ void MainWindow::simpleGetCS()
 	ofstream output;
 	output.open(fileInfo.fFileName);
 	
-	cout<<"Be aware! Currently this function assumes that all runs have"<<endl;
-	cout<<" a phi width of +- 20 milli radians"<<endl;
+	//cout<<"Be aware! Currently this function assumes that all runs have"<<endl;
+	//cout<<" a phi width of +- 20 milli radians"<<endl;
 	
 	//now output the information line of the csv file
 	ouput<<"Run number, angle, state 1 cs, state 1 cs err, state 2 cs, state 2 cs err, ..."<<endl;
+	
+	cout<<"\nPlease be aware, the simple version of this function assumes that all of the input"<<endl;
+	cout<<"That you give with regards to phi width etc holds for the entire set of runs\n"<<endl;
+	
+	int numStates=0;
+	//loop for input
+	while(numStates<1)
+	{
+		cout<<"Please type in the number of states to get data for (positive integer)"<<endl;
+		cin>>numStates;
+	}
+	
+	double thetaMin=0.0, thetaMax=0.0, delta=0.0, phiWidth=0.0;
+	int numSegs=0;
+	//retrieve the needed numbers
+	do
+	{
+		cout<<"Please type in the minimum theta (degrees) (between -1.2 and 1.2 I tend use  -0.9)"<<endl;
+		cin>>thetaMin;
+		cout<<"Please type in the maximum theta (degrees) (between -1.2 and 1.2 I tend use  0.9)"<<endl;
+		cin>>thetaMax;
+		cout<<"Please type in the number of segments in theta to take (I use 6)"<<endl;
+		cin>>numSegs;
+		cout<<"Please type in the phi width (milliradians) (phi +- (width/2))"<<endl;
+		cin>>phiWidth;
+	} while( thetaMax<=thetaMin && numSegs<1);
+	
+	delta = (thetaMax-thetaMin)/((float)numSegs);
 	
 	//next we need to iterate through the set of runs
 	for(int i=0; i<numRuns; ++i)
@@ -1319,10 +1352,95 @@ void MainWindow::simpleGetCS()
 		//now retrieve the background subtracted spectrum for this run
 		TH2F* spec = testSubSpec(runs[i].runNumber);
 		if(spec==NULL)
+		{	return;	}
+		
+		cout<<numStates<<"  "<<thetaMin<<"  "<<thetaMax<<"  "<<numSegs<<"  "<<delta<<"  "<<phiWidth
+		
+		spec->Draw("colz");
+		whiteBoard->SetLogy(0);
+		whiteBoard->SetLogz(1);
+		whiteBoard->Update();
+		
+		int numLines = (2*numStates);
+		
+		float* m = new float[numLines];
+		float* b = new float[numLines];
+		
+		//get the lines defining the state bounds
+		for(int j=0; j<numStates; ++j)
 		{
-			return;
+			cout<<"Please draw the line that defines the lower bound in xfp for the state "<<(j+1)<<endl;
+			TLine* line = (TLine*)gPad->WaitPrimitive("TLine","Line");
+			float x1 = line->GetX1();
+			float x2 = line->GetX2();
+			float y1 = line->GetY1();
+			float y2 = line->GetY2();
+			m[2*j] = ((x2 - x1)/(y2 - y1));
+			b[2*j] = ( ((x2*y1)-(x1*y2)) / (y1-y2) );
+			line->Delete();
+			
+			cout<<"Please draw the line that defines the upper bound in xfp for the state "<<(j+1)<<endl;
+			TLine* line = (TLine*)gPad->WaitPrimitive("TLine","Line");
+			x1 = line->GetX1();
+			x2 = line->GetX2();
+			y1 = line->GetY1();
+			y2 = line->GetY2();
+			m[2*j+1] = ((x2 - x1)/(y2 - y1));
+			b[2*j+1] = ( ((x2*y1)-(x1*y2)) / (y1-y2) );
+			line->Delete();
 		}
+		
+		//arrays for holding the 
+		float xArr[5];
+		float yArr[5];
+		
+		for(int j=0; j<numSegs; ++j)
+		{
+			float lowAngle = thetaMin + (j * delta);
+			float highAngle = lowAngle + angleWidth;
+			//bottom left | bottom right
+			yArr[0]=lowAngle; yArr[1]=lowAngle;
+			//top right | top left
+			yArr[2]=highAngle; yArr[3]=highAngle;
+			//bottom left again
+			yArr[4]=lowAngle;
+			float central=(runs[i].angle + ((lowAngle+highAngle)/2));
+			
+			ouput<<runs[i].runNumber<<", "<<central<<", ";
+			
+			for(int k=0; k<numStates; ++k)
+			{
+				//calculate the x points of the cut from the given bounds
+				//bottom left | bottom right
+				xArr[0] = ( b[2*k]  + m[2*k]*yArr[0]);    xArr[1] = (b[2*k+1] + m[2*k+1]*yArr[1]);
+				//top right | top left
+				xArr[2] = (b[2*k+1] + m[2*k+1]*yArr[2]);  xArr[3] = ( b[2*k]  + m[2*k]*yArr[3]);
+				//bottom left again
+				xArr[4] = xArr[0];
+			
+				//now extract the points by using TCutG and its integrate member function
+				TCutG* intBounds = new TCutG("bounds",5,xArr,yArr);
+				intBounds->SetVarX("Xfp");
+				intBounds->SetVarY("Thcorr");
+				double counts = intBounds->IntegralHist(subH2);
+				" angle, state 1 cs, state 1 cs err, state 2 cs, state 2 cs err, ..."
+				double cntsErr = TMath::Sqrt(counts);
+				ouput<< calcCrossSection(counts, runs[i], delta, phiWidth) <<", "<< calcCrossSection(cntsErr, runs[i], delta, phiWidth);
+				if(k != (numStates - 1))
+				{
+					output<<", ";
+				}
+				else
+				{
+					output<<endl;
+				}
+			}
+		}
+		delete[] m;
+		delete[] b;
+		delete spec;
 	}
+	
 }
 
 /******************************************
@@ -2328,6 +2446,25 @@ double MainWindow::calculateBGNorm(TGraph* regions)
 	double bgWidth = ( (xVals[1]-xVals[0]) + (xVals[3]-xVals[2]) );
 	double trWidth = ( xVals[2]-xVals[1] );
 	return (trWidth/bgWidth);
+}
+
+//returns d(sigma)/d(Omega) for that number of counts and rund data and angular region
+double MainWindow::calcCrossSection(double counts, const RunData* data, double thWidth, double phWidth)
+{
+	const double electronCharge = 1.602176487e-19;
+	//this if for the conversion from (mg/(cm^2)/AMU) --> (1/ mb)
+	// mg/AMU = 6.02213665167516e20   and 1/cm^2 = 10^-27 1/mb
+	const double massAndAreaConversion = 6.02213665167516e-7;
+	const double nano = 0.000000001
+	const double pi = 3.141592653589793;
+	double solidAngle = (thWidth*(pi/180.0)*(phWidth/1000.0));
+	double eff = ((double)data.grAccept)/((double)data.grRequest);
+	eff*= ((double)data.vdfEff);
+	double incBeam = ( (((double)data.beamInt)*((double)data.biRange)*nano)/(1000.0* ((double)data.chargeState) * electronCharge) );
+	double targNum = (( (((double) data.thickness) * massAndAreaConversion) )/((double)data.targetMass) );
+	double denom = ( solidAngle*eff*incBeam*targNum );
+	double cs = counts/denom;
+	return cs;
 }
 
 bool MainWindow::checkUpToRunData()
