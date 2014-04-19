@@ -1289,7 +1289,7 @@ void MainWindow::simpleGetCS()
 	{	return; }
 	
 	//first we need to find out a file name to save this data to
-	cout<<"\nGive the file name to save this cross-section data to"<<endl
+	cout<<"\nGive the file name to save this cross-section data to"<<endl;
 	static TString directory(".");
 	TGFileInfo fileInfo;
 	fileInfo.SetMultipleSelection(false);
@@ -1300,23 +1300,27 @@ void MainWindow::simpleGetCS()
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
 	new TGFileDialog(gClient->GetRoot(), menu, kFDSave, &fileInfo);
-	//cout<<fileInfo.fFilename<<", "<<fileInfo.fIniDir<<endl;
-	directory = fileInfo.fIniDir;
-	
 	if(TString(fileInfo.fFilename).IsNull())
 	{
 		return;
 	}
+	//make sure the file name ends with the extension
+	string temp = string(fileInfo.fFilename);
+	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
+	{
+		temp.append(".csv");
+	}
+	directory = fileInfo.fIniDir;
 	
 	//now open the file
 	ofstream output;
-	output.open(fileInfo.fFileName);
+	output.open(temp.c_str());
 	
 	//cout<<"Be aware! Currently this function assumes that all runs have"<<endl;
 	//cout<<" a phi width of +- 20 milli radians"<<endl;
 	
 	//now output the information line of the csv file
-	ouput<<"Run number, angle, state 1 cs, state 1 cs err, state 2 cs, state 2 cs err, ..."<<endl;
+	output<<"Run number, angle, state 1 cs, state 1 cs err, state 2 cs, state 2 cs err, ..."<<endl;
 	
 	cout<<"\nPlease be aware, the simple version of this function assumes that all of the input"<<endl;
 	cout<<"That you give with regards to phi width etc holds for the entire set of runs\n"<<endl;
@@ -1406,7 +1410,7 @@ void MainWindow::simpleGetCS()
 			yArr[4]=lowAngle;
 			float central=(runs[i].angle + ((lowAngle+highAngle)/2));
 			
-			ouput<<runs[i].runNumber<<", "<<central<<", ";
+			output<<runs[i].runNumber<<", "<<central<<", ";
 			
 			for(int k=0; k<numStates; ++k)
 			{
@@ -1425,7 +1429,7 @@ void MainWindow::simpleGetCS()
 				double counts = intBounds->IntegralHist(subH2);
 				" angle, state 1 cs, state 1 cs err, state 2 cs, state 2 cs err, ..."
 				double cntsErr = TMath::Sqrt(counts);
-				ouput<< calcCrossSection(counts, runs[i], delta, phiWidth) <<", "<< calcCrossSection(cntsErr, runs[i], delta, phiWidth);
+				output<< calcCrossSection(counts, runs[i], delta, phiWidth) <<", "<< calcCrossSection(cntsErr, runs[i], delta, phiWidth);
 				if(k != (numStates - 1))
 				{
 					output<<", ";
