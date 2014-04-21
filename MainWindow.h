@@ -210,70 +210,70 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	******************************************/
 	TGVerticalFrame *fileFrame = new TGVerticalFrame(overallFrame, width, height);
 	TGLabel* fileLabel = new TGLabel(fileFrame, "File Operations");
-	fileFrame->AddFrame(fileLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileFrame->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//read run data button
 	TGTextButton *rdRunData = new TGTextButton(fileFrame,"Read Run Data");
 	rdRunData->Connect("Clicked()","MainWindow",this,"readRunData()");
-	fileFrame->AddFrame(rdRunData, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileFrame->AddFrame(rdRunData, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//build combined root file
 	TGTextButton *buildFile = new TGTextButton(fileFrame,"Build Combined Root File");
 	buildFile->Connect("Clicked()","MainWindow",this,"buildBigFile()");
-	fileFrame->AddFrame(buildFile, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileFrame->AddFrame(buildFile, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//open combined root file
 	TGTextButton *opBigFile = new TGTextButton(fileFrame,"Open Combined Root File");
 	opBigFile->Connect("Clicked()","MainWindow",this,"openBigFile()");
-	fileFrame->AddFrame(opBigFile, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileFrame->AddFrame(opBigFile, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//CreateAuxFile button
 	TGTextButton *createAuxFile = new TGTextButton(fileFrame,"Make Auxilliary File");
 	createAuxFile->Connect("Clicked()","MainWindow",this,"makeAuxFile()");
-	fileFrame->AddFrame(createAuxFile, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileFrame->AddFrame(createAuxFile, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//Open Aux File button
 	TGTextButton *opAuxFile = new TGTextButton(fileFrame,"Open Auxilliary File");
 	opAuxFile->Connect("Clicked()","MainWindow",this,"openAuxFile()");
-	fileFrame->AddFrame(opAuxFile, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileFrame->AddFrame(opAuxFile, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//Create friend file button
 	TGTextButton *createFrFile = new TGTextButton(fileFrame,"Make Friend Tree File");
 	createFrFile->Connect("Clicked()","MainWindow",this,"makeFriendFile()");
-	fileFrame->AddFrame(createFrFile, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileFrame->AddFrame(createFrFile, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//Open friend file button
 	TGTextButton *opFrFile = new TGTextButton(fileFrame,"Open Friend Tree File");
 	opFrFile->Connect("Clicked()","MainWindow",this,"openFriendFile()");
-	fileFrame->AddFrame(opFrFile, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileFrame->AddFrame(opFrFile, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//add the file frame to the overall frame
-	overallFrame->AddFrame(fileFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	overallFrame->AddFrame(fileFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	/******************************************
 	** Cut operations buttons
 	******************************************/
 	TGVerticalFrame *cutFrame = new TGVerticalFrame(overallFrame, width, height);
 	TGLabel* cutLabel = new TGLabel(cutFrame, "Cut and Shape Operations");
-	cutFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	cutFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//Get PIDs button
 	TGTextButton *getPIDs = new TGTextButton(cutFrame,"Get PID Cuts");
 	getPIDs->Connect("Clicked()","MainWindow",this,"getPIDCuts()");
-	cutFrame->AddFrame(getPIDs, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	cutFrame->AddFrame(getPIDs, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//display PIDs button
 	TGTextButton *dispPID = new TGTextButton(cutFrame,"Show PID Cuts");
 	dispPID->Connect("Clicked()","MainWindow",this,"showPIDCut()");
-	cutFrame->AddFrame(dispPID, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	cutFrame->AddFrame(dispPID, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//Get BG Cuts Button
 	TGTextButton *getBG = new TGTextButton(cutFrame,"Get BG Cuts");
 	getBG->Connect("Clicked()","MainWindow",this,"getBGCuts()");
-	cutFrame->AddFrame(getBG, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	cutFrame->AddFrame(getBG, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//Display BG Cuts Button
 	TGTextButton *dispBG = new TGTextButton(cutFrame,"Show BG Cuts");
 	dispBG->Connect("Clicked()","MainWindow",this,"showBGCut()");
-	cutFrame->AddFrame(dispBG, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	cutFrame->AddFrame(dispBG, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	
 	/******************************************
@@ -282,25 +282,25 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//Get shapes button
 	TGTextButton *getShapesBut = new TGTextButton(cutFrame,"Get Shapes");
 	getShapesBut->Connect("Clicked()","MainWindow",this,"getFirstOrdShapes()");
-	cutFrame->AddFrame(getShapesBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	cutFrame->AddFrame(getShapesBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//display shapes button
 	TGTextButton *showShapesBut = new TGTextButton(cutFrame,"Show Shapes");
 	showShapesBut->Connect("Clicked()","MainWindow",this,"showFirstOrdShapes()");
-	cutFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	cutFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//make bg sub spectra button
 	TGTextButton *makeBGSubBut = new TGTextButton(cutFrame,"Make BG-Sub Spectra");
 	makeBGSubBut->Connect("Clicked()","MainWindow",this,"makeBGSubSpecs()");
-	cutFrame->AddFrame(makeBGSubBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	cutFrame->AddFrame(makeBGSubBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//display bgsub shapes button
 	TGTextButton *showbgSubBut = new TGTextButton(cutFrame,"Show BG-sub Shapes");
 	showbgSubBut->Connect("Clicked()","MainWindow",this,"showSubbedShapes()");
-	cutFrame->AddFrame(showbgSubBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	cutFrame->AddFrame(showbgSubBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//add the cut frame to the overall frame
-	overallFrame->AddFrame(cutFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	overallFrame->AddFrame(cutFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	
 	/******************************************
@@ -308,17 +308,17 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	******************************************/
 	TGVerticalFrame *csFrame = new TGVerticalFrame(overallFrame, width, height);
 	TGLabel* csLabel = new TGLabel(csFrame, "Cross-Section Extraction");
-	csFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	csFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//Simple get cross-sections button
 	TGTextButton *scsBut = new TGTextButton(csFrame,"Simple CS Extraction (TBI)");
 	scsBut->Connect("Clicked()","MainWindow",this,"simpleGetCS()");
-	csFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	csFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//add the cs frame to the overall frame
-	overallFrame->AddFrame(csFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	overallFrame->AddFrame(csFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//add the overall frame to the full frame	
-	fullFrame->AddFrame(overallFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	fullFrame->AddFrame(overallFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	
 	/******************************************
@@ -327,69 +327,69 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	TGHorizontalFrame *extraFrame = new TGHorizontalFrame(fullFrame, width, height);
 	TGVerticalFrame *dispFrame = new TGVerticalFrame(extraFrame, width, height);
 	TGLabel* auxLabel = new TGLabel(dispFrame, "Sequential Display Buttons");
-	dispFrame->AddFrame(auxLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	dispFrame->AddFrame(auxLabel, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	TGHorizontalFrame *auxButtonsFrame = new TGHorizontalFrame(dispFrame, width, height);
 	//show previous spectrum
 	TGTextButton *prevSpec = new TGTextButton(auxButtonsFrame,"Prev Spec");
 	prevSpec->Connect("Clicked()","MainWindow",this,"prevSeqSpec()");
-	auxButtonsFrame->AddFrame(prevSpec, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	auxButtonsFrame->AddFrame(prevSpec, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//show next spectrum
 	TGTextButton *nextSpec = new TGTextButton(auxButtonsFrame,"Next Spec");
 	nextSpec->Connect("Clicked()","MainWindow",this,"nextSeqSpec()");
-	auxButtonsFrame->AddFrame(nextSpec, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	auxButtonsFrame->AddFrame(nextSpec, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//end display
 	TGTextButton *endSpec = new TGTextButton(auxButtonsFrame,"End Display");
 	endSpec->Connect("Clicked()","MainWindow",this,"endSeqSpec()");
-	auxButtonsFrame->AddFrame(endSpec, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	auxButtonsFrame->AddFrame(endSpec, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 
-	dispFrame->AddFrame(auxButtonsFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
-	extraFrame->AddFrame(dispFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	dispFrame->AddFrame(auxButtonsFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	extraFrame->AddFrame(dispFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	/******************************************
 	** Overall Control buttons
 	******************************************/
 	TGVerticalFrame *ctrlFrame = new TGVerticalFrame(extraFrame, width, height);
 	TGLabel* fancyLabel = new TGLabel(ctrlFrame, "Overall Control");
-	ctrlFrame->AddFrame(fancyLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	ctrlFrame->AddFrame(fancyLabel, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	TGHorizontalFrame *overallControlFrame = new TGHorizontalFrame(ctrlFrame, width, height);
 	//reset button
 	TGTextButton *resBut = new TGTextButton(overallControlFrame,"Reset Setup");
 	resBut->Connect("Clicked()","MainWindow",this,"resetToStart()");
-	overallControlFrame->AddFrame(resBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	overallControlFrame->AddFrame(resBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//Kill application button
 	TGTextButton *exBut = new TGTextButton(overallControlFrame,"Exit");
 	exBut->Connect("Clicked()","MainWindow",this,"exitApp()");
-	overallControlFrame->AddFrame(exBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	overallControlFrame->AddFrame(exBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
-	ctrlFrame->AddFrame(overallControlFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
-	extraFrame->AddFrame(ctrlFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	ctrlFrame->AddFrame(overallControlFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	extraFrame->AddFrame(ctrlFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
-	fullFrame->AddFrame(extraFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	fullFrame->AddFrame(extraFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	/******************************************
 	** File Control buttons
 	******************************************/
 	TGLabel* fileControlLabel = new TGLabel(fullFrame, "File Control (for debugging)");
-	fullFrame->AddFrame(fileControlLabel, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fullFrame->AddFrame(fileControlLabel, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	TGHorizontalFrame *fileControlFrame = new TGHorizontalFrame(fullFrame, width, height);
 	//make tree file the current dir
 	TGTextButton *treeFocusBut = new TGTextButton(fileControlFrame,"Activate Tree File");
 	treeFocusBut->Connect("Clicked()","MainWindow",this,"makeTreeFileActive()");
-	fileControlFrame->AddFrame(treeFocusBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileControlFrame->AddFrame(treeFocusBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//make aux file the current dir
 	TGTextButton *auxFocusBut = new TGTextButton(fileControlFrame,"Activate Aux File");
 	auxFocusBut->Connect("Clicked()","MainWindow",this,"makeAuxFileActive()");
-	fileControlFrame->AddFrame(auxFocusBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileControlFrame->AddFrame(auxFocusBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//make friend file the current dir
 	TGTextButton *frFocusBut = new TGTextButton(fileControlFrame,"Activate Friend File");
 	frFocusBut->Connect("Clicked()","MainWindow",this,"makeFriendFileActive()");
-	fileControlFrame->AddFrame(frFocusBut, new TGLayoutHints(kLHintsCenterX,5,5,3,4));
+	fileControlFrame->AddFrame(frFocusBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
-	fullFrame->AddFrame(fileControlFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	fullFrame->AddFrame(fileControlFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//add the full frame to the window
-	menu->AddFrame(fullFrame,new TGLayoutHints(kLHintsCenterX,2,2,2,2));
+	menu->AddFrame(fullFrame,new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//set the name of the main frame
 	menu->SetWindowName("Analysis Menu");
@@ -1326,27 +1326,11 @@ void MainWindow::simpleGetCS()
 	cout<<"That you give with regards to phi width etc holds for the entire set of runs\n"<<endl;
 	
 	int numStates=0;
-	//loop for input
-	while(numStates<1)
-	{
-		cout<<"Please type in the number of states to get data for (positive integer)"<<endl;
-		cin>>numStates;
-	}
-	
 	double thetaMin=0.0, thetaMax=0.0, delta=0.0, phiWidth=0.0;
 	int numSegs=0;
-	//retrieve the needed numbers
-	do
-	{
-		cout<<"Please type in the minimum theta (degrees) (between -1.2 and 1.2 I tend use  -0.9)"<<endl;
-		cin>>thetaMin;
-		cout<<"Please type in the maximum theta (degrees) (between -1.2 and 1.2 I tend use  0.9)"<<endl;
-		cin>>thetaMax;
-		cout<<"Please type in the number of segments in theta to take (I use 6)"<<endl;
-		cin>>numSegs;
-		cout<<"Please type in the phi width (milliradians) (phi +- (width/2))"<<endl;
-		cin>>phiWidth;
-	} while( thetaMax<=thetaMin && numSegs<1);
+	//loop for input
+	CSBounds temp;
+	
 	
 	delta = (thetaMax-thetaMin)/((float)numSegs);
 	
