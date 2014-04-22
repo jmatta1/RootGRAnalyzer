@@ -1,6 +1,10 @@
 #ifndef DIALOGS_H
 #define DIALOGS_H
 
+#include<sstream>
+using std::string;
+using std::ostringstream;
+
 #include<TGWindow.h>
 #include<TGFrame.h>
 #include<TGLabel.h>
@@ -20,15 +24,20 @@ class BasicCSDialog
 {
 	RQ_OBJECT("BasicCSDialog")
 public:
-	BasicCSDialog(const TGWindow *p, TGWindow *main);
+	BasicCSDialog(const TGWindow* parent, UInt_t width, UInt_t height);
 	~BasicCSDialog();
 	
 	//show and hide functions
 	void show();
 	void hide();
 	
-	//Get values function
+	//title modifier
+	void setBasicName();
+	void setRunName(int runN);
+	
+	//Values function
 	void getVals(CSBounds* bnds);
+	void setVals(CSBounds* bnds)
 
 private:
 	//widgetNumberings
@@ -73,7 +82,7 @@ private:
 	TGHorizontal3DLine* sep4;
 };
 
-BasicCSDialog::BasicCSDialog(const TGWindow *p, TGWindow *main):
+BasicCSDialog::BasicCSDialog(const TGWindow* parent, UInt_t width, UInt_t height):
 		TGTransientFrame(p, main, 10, 10, kVerticalFrame)
 {
 	/***************************************
@@ -84,7 +93,7 @@ BasicCSDialog::BasicCSDialog(const TGWindow *p, TGWindow *main):
 	//make the main frame
 	mainWindow = new TGMainFrame(parent,width,height);
 	//make the sub frames
-	mainOrganizer = new TGVerticalFrame(this, 10, 10);
+	mainOrganizer = new TGVerticalFrame(mainWindow, 10, 10);
 	statesFrame = new TGHorizontalFrame(mainOrganizer, 10, 10);
 	minThetaFrame = new TGHorizontalFrame(mainOrganizer, 10, 10);
 	maxThetaFrame = new TGHorizontalFrame(mainOrganizer, 10, 10);
@@ -166,10 +175,8 @@ BasicCSDialog::BasicCSDialog(const TGWindow *p, TGWindow *main):
 	mainOrganizer->AddFrame(phiWidthMainLbl, new TGLayoutHints(kLHintsNormal,5,5,3,4) );
 	mainOrganizer->AddFrame(phiFrame, new TGLayoutHints(kLHintsNormal,5,5,3,4) );
 	
-	mainOrganizer->AddFrame(sep5, new TGLayoutHints(kLHintsExpandX,5,5,3,4) );
-	
 	//set the name for dialog
-	mainWindow->SetWindowName("CS Info Dialog");
+	mainWindow->SetWindowName("Info For All Runs");
 	//now add the mainOrganizer frame to this dialog
 	mainWindow->AddFrame(mainOrganizer, new TGLayoutHints( kLHintsExpandX | kLHintsTop ,5,5,3,4) );
 	//map the subwindows
@@ -182,8 +189,11 @@ BasicCSDialog::BasicCSDialog(const TGWindow *p, TGWindow *main):
                kMWMInputModeless);
 }
 
+
+
 BasicCSDialog::~BasicCSDialog()
 {
+	mainWindow->Cleanup();
 	delete mainWindow;
 }
 
@@ -197,6 +207,19 @@ void BasicCSDialog::hide()
 	mainWindow->UnmapWindow();
 }
 
+void BasicCSDialog::setBasicName()
+{
+	mainWindow->SetWindowName("Info For All Runs");
+}
+
+void BasicCSDialog::setRunName(int runN)
+{
+	ostringstream titler;
+	titler<<"Info For Run "<<runN;
+	string title = titler.str();
+	mainWindow->SetWindowName(title.c_str());
+}
+
 void BasicCSDialog::getVals(CSBounds* bnds)
 {
 	bnds->numStates = numStatesEntry->GetIntNumber();
@@ -204,6 +227,15 @@ void BasicCSDialog::getVals(CSBounds* bnds)
 	bnds->maxTheta  = maxThetaEntry->GetNumber();
 	bnds->thetaSegs = numSegsEntry->GetIntNumber();
 	bnds->phiWidth  = phiWidthEntry->GetNumber();
+}
+
+void BasicCSDialog::setVals(CSBounds* bnds)
+{
+	numStatesEntry->SetIntNumber( bnds->numStates);
+	minThetaEntry->SetNumber(bnds->minTheta );
+	maxThetaEntry->SetNumber(bnds->maxTheta);
+	numSegsEntry->SetIntNumber(bnds->thetaSegs);
+	phiWidthEntry->SetNumber(bnds->phiWidth);
 }
 
 #endif

@@ -43,9 +43,9 @@ using std::ios_base;
 
 //my includes
 #include"guiSupport.h"
-//#include"csDialog.h"
+#include"BasicCSDialog.h"
 
-enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs};
+enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs, BasicCsInfoSimple, BasicCSInfoPerRun};
 enum UpdateCallType{ Initial, Normal, Final};
 
 TCut RayCut;
@@ -80,6 +80,8 @@ public:
 	void showSubbedShapes();
 
 	//cs operations
+	void getBasicCSParamsSimple();
+	void getBasicCSParamsPerRun();
 	void simpleGetCS();
 
 	//sequential spectrum display
@@ -166,6 +168,7 @@ private:
 	//Gui stuff
 	TGMainFrame *menu;
 	TCanvas *whiteBoard;
+	BasicCSDialog* basicInfoGrabber;
 	TSystem *sys;
 	
 	//sequential display stuff
@@ -175,6 +178,8 @@ private:
 	//analysis stuff
 	RunData* runs;
 	int numRuns;
+	CSBounds* csBnds;
+	int numBnds;
 	TFile* mainFile;
 	TFile* auxFile;
 	TFile* frFile;
@@ -184,6 +189,8 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 {
 	runs=NULL;
 	numRuns=0;
+	csBnds=NULL;
+	numBnds = 0;
 	mainFile=NULL;
 	auxFile=NULL;
 	frFile=NULL;
@@ -194,6 +201,8 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	sys = gSystem;
 	
 	RayCut.SetTitle("Rayid==0");
+	
+	basicInfoGrabber = BasicCSDialog(parent,width,height);
 	
 	//create the area for the menu items
 	menu = new TGMainFrame(parent,width,height);
@@ -311,7 +320,15 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	TGLabel* csLabel = new TGLabel(csFrame, "Cross-Section Extraction");
 	csFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//Simple get cross-sections button
-	TGTextButton *scsBut = new TGTextButton(csFrame,"Simple CS Extraction (TBI)");
+	TGTextButton *scsBut = new TGTextButton(csFrame,"Get CS Params All Runs");
+	scsBut->Connect("Clicked()","MainWindow",this,"getBasicCSParamsSimple()");
+	csFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
+	//Simple get cross-sections button
+	TGTextButton *scsBut = new TGTextButton(csFrame,"Get CS Params Per Run");
+	scsBut->Connect("Clicked()","MainWindow",this,"getBasicCSParamsPerRun()");
+	csFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
+	//Simple get cross-sections button
+	TGTextButton *scsBut = new TGTextButton(csFrame,"Simple CS Extraction");
 	scsBut->Connect("Clicked()","MainWindow",this,"simpleGetCS()");
 	csFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
@@ -408,6 +425,7 @@ MainWindow::~MainWindow()
 {
 	menu->Cleanup();
 	delete whiteBoard;
+	delete basicInfoGrabber;
 	delete menu;
 	//delete sys;
 	//sys=NULL;
@@ -416,6 +434,11 @@ MainWindow::~MainWindow()
 	{
 		delete[] runs;
 		runs = NULL;
+	}
+	if(csBnds != NULL)
+	{
+		delete[] csBnds;
+		csBnds = NULL;
 	}
 	if(auxFile != NULL)
 	{
@@ -497,6 +520,7 @@ void MainWindow::readRunData()
 		++count;
 	}
 	cout<<"\nRun data has been loaded"<<endl;
+	csBnds = new CSBounds[numRuns];
 }
 
 void MainWindow::buildBigFile()
@@ -743,7 +767,6 @@ void MainWindow::makeFriendFile()
 	frFile = new TFile(temp.c_str(),"RECREATE");
 	cout<<"\nFriend File Created"<<endl;
 }
-
 
 void MainWindow::openFriendFile()
 {
@@ -1283,11 +1306,36 @@ void MainWindow::showSubbedShapes()
 	updateDisplay(Initial);
 }
 
+void getBasicCSParamsSimple()
+{
+	if(!checkUpToFrFile())
+	{	return; }
+	dispNum = 0;
+	dispFunc = BasicCSInfoSimple;
+	updateDisplay(Initial);
+}
+
+void getBasicCSParamsPerRun()
+{
+	if(!checkUpToFrFile())
+	{	return; }
+	cout<<"To support using the next and prev spectra functions here you will need to"<<endl;
+	cout<<"all the way to the end of the list of runs using the next button before ending"<<endl;
+	dispNum = 0;
+	dispFunc = BasicCSInfoPerRun;
+	updateDisplay(Initial);
+}
 
 void MainWindow::simpleGetCS()
 {
 	if(!checkUpToFrFile())
 	{	return; }
+	
+	if(numBnds!=numRuns)
+	{
+		cout<<"Boundary Information has not been entered for every run"<<endl;
+		return;
+	}
 	
 	//first we need to find out a file name to save this data to
 	cout<<"\nGive the file name to save this cross-section data to"<<endl;
@@ -1326,38 +1374,16 @@ void MainWindow::simpleGetCS()
 	int numStates=0;
 	double thetaMin=0.0, thetaMax=0.0, delta=0.0, phiWidth=0.0;
 	int numSegs=0;
-	if (!TClass::GetDict("SimpleCSDialog"))
-	{
-		gROOT->ProcessLine(".L csDialog.h++");
-	}
-	//loop for input
-	CSBounds* tempBnds = new CSBounds;
-	
-	//I don't like this but unless I am mistaken this will delete itself properly on clicking cancel or ok
-	new SimpleCSDialog( menu, menu, tempBnds);
-
-	if( !(tempBnds->goodReturn) )
-	{
-		cout<<"Backing out of getting cs"<<endl;
-		delete tempBnds;
-		return;
-	}
-	else
-	{
-		numStates = tempBnds->numStates;
-		thetaMin = tempBnds->minTheta;
-		thetaMax = tempBnds->maxTheta;
-		numSegs = tempBnds->thetaSegs;
-		phiWidth = tempBnds->phiWidth;
-		
-		delete tempBnds;
-	}
-	
-	delta = (thetaMax-thetaMin)/((float)numSegs);
 	
 	//next we need to iterate through the set of runs
 	for(int i=0; i<numRuns; ++i)
 	{
+		numStates = csBnds[i].numStates;
+		thetaMin = csBnds[i].minTheta;
+		thetaMax = csBnds[i].maxTheta;
+		numSegs = csBnds[i].thetaSegs;
+		phiWidth = csBnds[i].phiWidth;
+		delta = (thetaMax-thetaMin)/((float)numSegs);
 		//now retrieve the background subtracted spectrum for this run
 		TH2F* spec = testSubSpec(runs[i].runNumber);
 		if(spec==NULL)
@@ -1773,7 +1799,6 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 		subSpec = NULL;
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		gStyle->SetOptStat();
 	}
 	else if(tp==Normal)
 	{
@@ -1823,7 +1848,6 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 			delete subSpec;
 			subSpec=NULL;
 		}
-		gStyle->SetOptStat(0);
 		whiteBoard->Clear();
 		whiteBoard->Update();
 		return;
@@ -1868,11 +1892,74 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 	whiteBoard->Update();
 }
 
+void grabBasicCsInfoSimple(const UpdateCallType& tp)
+{
+	switch(tp)
+	{
+		case Initial:
+			numBnds = 0;
+			basicInfoGrabber->setBasicName();
+			basicInfoGrabber->show();
+			break;
+		case Normal:
+			for( int i=0; i<numRuns; ++i)
+			{
+				basicInfoGrabber->getVals((csBnds+i));
+			}
+			numBnds = numRuns;
+			break;
+		case Final:
+			for( int i=0; i<numRuns; ++i)
+			{
+				basicInfoGrabber->getVals((csBnds+i));
+			}
+			numBnds = numRuns;
+			basicInfoGrabber->hide();
+			break;
+	}
+}
+
+	BasicCSDialog* basicInfoGrabber;
+	CSBounds* csBnds;
+	int numBnds;
+
+void grabBasicCsInfoPerRun(const UpdateCallType& tp)
+{
+	static int prevRun;
+	switch(tp)
+	{
+		case Initial:
+			numBnds = 0;
+			prevRun = 0;
+			basicInfoGrabber->setRunName(runs[0].runNumber);
+			basicInfoGrabber->show();
+			break;
+		case Normal:
+			if(dispNum == (prevRun - 1))
+			{//we went backwards put the values in the widget and set the title
+				basicInfoGrabber->setVals( (csBnds+dispNum) );
+				basicInfoGrabber->setRunName(runs[dispNum].runNumber);
+			}
+			else if (dispNum == (prevRun + 1))
+			{//we went forward get the values from the widget and set the title
+				basicInfoGrabber->getVals( (csBnds+prevRun) );
+				basicInfoGrabber->setRunName(runs[dispNum].runNumber);
+			}
+			prevRun = dispNum
+			break;
+		case Final:
+			basicInfoGrabber->getVals( (csBnds+dispNum) );
+			basicInfoGrabber->hide();
+			numBnds = (dispNum + 1);
+			break;
+	}
+}
+
 void MainWindow::updateDisplay(const UpdateCallType& tp)
 {
 	//I was using a switch statement for this but for some reason the interpretter was not handling it correctly
 	//replacing it with the if statement got the job done
-	if(dispFunc == PIDCut)
+	/*if(dispFunc == PIDCut)
 	{
 		updatePIDDisp(tp);
 		return;
@@ -1903,6 +1990,43 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 		cout<<"In update display with an invalid display function"<<endl;
 		cout<<"This should not be possible"<<endl;
 		return;
+	}*/
+	switch(dispFunc)
+	{
+		case PIDCut:
+			updatePIDDisp(tp);
+			return;
+			break;
+		case BGCut:
+			updateBGDisp(tp);
+			return;
+			break;
+		case ShapeDisp:
+			updateShapeDisp(tp);
+			return;
+			break;
+		case SubbedSpecs:
+			updateSubDisp(tp);
+			return;
+			break;
+		case BasicCsInfoSimple:
+			grabBasicCsInfoSimple(tp);
+			return;
+			break;
+		case BasicCSInfoPerRun:
+			grabBasicCsInfoPerRun(tp);
+			return;
+			break;
+		case None:
+			cout<<"In update display with no display function"<<endl;
+			cout<<"This should not be possible"<<endl;
+			return;
+			break;
+		default:
+			cout<<"In update display with an invalid display function"<<endl;
+			cout<<"This should not be possible"<<endl;
+			return;
+			break;
 	}
 }
 
@@ -1984,6 +2108,11 @@ void MainWindow::resetToStart()
 		delete[] runs;
 		runs = NULL;
 		numRuns=0;
+	}
+	if(csBnds != NULL)
+	{
+		delete[] csBnds;
+		csBnds = NULL;
 	}
 	if(auxFile != NULL)
 	{
@@ -2466,7 +2595,8 @@ double MainWindow::calcCrossSection(double counts, const RunData* data, double t
 	const double massAndAreaConversion = 6.02213665167516e-7;
 	const double nano = 0.000000001
 	const double pi = 3.141592653589793;
-	double solidAngle = (thWidth*(pi/180.0)*(phWidth/1000.0));
+	const double d2rConv = pi/180.0;
+	double solidAngle = (thWidth*d2rConv*(phWidth/1000.0));
 	double eff = ((double)data.grAccept)/((double)data.grRequest);
 	eff*= ((double)data.vdfEff);
 	double incBeam = ( (((double)data.beamInt)*((double)data.biRange)*nano)/(1000.0* ((double)data.chargeState) * electronCharge) );
