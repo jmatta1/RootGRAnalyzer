@@ -43,6 +43,7 @@ using std::ios_base;
 
 //my includes
 #include"guiSupport.h"
+//#include"csDialog.h"
 
 enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs};
 enum UpdateCallType{ Initial, Normal, Final};
@@ -1316,9 +1317,6 @@ void MainWindow::simpleGetCS()
 	ofstream output;
 	output.open(temp.c_str());
 	
-	//cout<<"Be aware! Currently this function assumes that all runs have"<<endl;
-	//cout<<" a phi width of +- 20 milli radians"<<endl;
-	
 	//now output the information line of the csv file
 	output<<"Run number, angle, state 1 cs, state 1 cs err, state 2 cs, state 2 cs err, ..."<<endl;
 	
@@ -1328,9 +1326,32 @@ void MainWindow::simpleGetCS()
 	int numStates=0;
 	double thetaMin=0.0, thetaMax=0.0, delta=0.0, phiWidth=0.0;
 	int numSegs=0;
+	if (!TClass::GetDict("SimpleCSDialog"))
+	{
+		gROOT->ProcessLine(".L csDialog.h++");
+	}
 	//loop for input
-	CSBounds temp;
+	CSBounds* tempBnds = new CSBounds;
 	
+	//I don't like this but unless I am mistaken this will delete itself properly on clicking cancel or ok
+	new SimpleCSDialog( menu, menu, tempBnds);
+
+	if( !(tempBnds->goodReturn) )
+	{
+		cout<<"Backing out of getting cs"<<endl;
+		delete tempBnds;
+		return;
+	}
+	else
+	{
+		numStates = tempBnds->numStates;
+		thetaMin = tempBnds->minTheta;
+		thetaMax = tempBnds->maxTheta;
+		numSegs = tempBnds->thetaSegs;
+		phiWidth = tempBnds->phiWidth;
+		
+		delete tempBnds;
+	}
 	
 	delta = (thetaMax-thetaMin)/((float)numSegs);
 	

@@ -14,28 +14,36 @@ struct CSBounds
 	float maxTheta;
 	int thetaSegs;
 	float phiWidth;
-	bool goodReturn;
 };
 
-class SimpleCSDialog : public TGTransientFrame
+class BasicCSDialog
 {
-private:
-	inline void update(int param);
-	//not implemented
-	SimpleCSDialog(const SimpleCSDialog&);
-	SimpleCSDialog& operator=(const SimpleCSDialog&);
+	RQ_OBJECT("BasicCSDialog")
+public:
+	BasicCSDialog(const TGWindow *p, TGWindow *main);
+	~BasicCSDialog();
 	
-protected:
+	//show and hide functions
+	void show();
+	void hide();
+	
+	//Get values function
+	void getVals(CSBounds* bnds);
+
+private:
 	//widgetNumberings
 	enum {StatesEntry=1, MinEntry=2, MaxEntry=3, SegsEntry=4, PhiEntry=5, CancelButton=6, OKButton=7};
-	//frames
+	//main window
+	TGMainFrame *mainWindow;
+	//sub frames
+	//these are here so that I can know what is in the class, they should be deleted in the typical recursive fashion
+	//when mainWindow is deleted though
 	TGVerticalFrame* mainOrganizer; //the outermost frame in the dialog box
 	TGHorizontalFrame* statesFrame;//the frame for holding the number of states information getters
 	TGHorizontalFrame* minThetaFrame;//the frame for holding the stuff to get the minimum theta
 	TGHorizontalFrame* maxThetaFrame;//the frame for holding the stuff to get the maximum theta
 	TGHorizontalFrame* segsFrame;//the frame for holding the stuff to get the number of segments in theta
 	TGHorizontalFrame* phiFrame;//the frame to hold the stuff for getting the width in phi
-	TGHorizontalFrame* buttonFrame;//holds the ok and cancel buttons
 	
 	//number getters
 	TGNumberEntry* numStatesEntry;//use for getting the number of states to retrieve
@@ -63,54 +71,18 @@ protected:
 	TGHorizontal3DLine* sep2;
 	TGHorizontal3DLine* sep3;
 	TGHorizontal3DLine* sep4;
-	TGHorizontal3DLine* sep5;
-	
-	//Buttons
-	TGTextButton* cancelBut;
-	TGTextButton* okBut;
-	
-	//pointer to the class that will accept the data from the dialog
-	CSBounds* bData;
-	
-public:
-	SimpleCSDialog(const TGWindow *p, TGWindow *main, CSBounds* bndData);
-	virtual ~SimpleCSDialog();
-	
-	virtual Bool_t ProcessMessage(Long_t msg, Long_t parm1, Long_t parm2);
-	virtual void CloseWindow();
-
-	void goodFinish();
-
-	ClassDef(SimpleCSDialog,0) //Cross Section Bounds gathering dialog
 };
 
-SimpleCSDialog::SimpleCSDialog(const TGWindow *p, TGWindow *main, CSBounds* bndData):
+BasicCSDialog::BasicCSDialog(const TGWindow *p, TGWindow *main):
 		TGTransientFrame(p, main, 10, 10, kVerticalFrame)
 {
-	//create a simple cs bounds dialog
-	SetCleanup(kDeepCleanup);
-	Connect("CloseWindow()", "SimpleCSDialog", this, "CloseWindow()");
-	DontCallClose();
-	
-	if (p!=NULL && main!=NULL)
-	{
-		MakeZombie();
-		return;
-	}
-	bData = bndData;
-	
-	bData->goodReturn = false;
-	bData->numStates = 1;
-	bData->minTheta = -0.9;
-	bData->maxTheta = 0.9;
-	bData->thetaSegs = 6;
-	bData->phiWidth = 40.0;
-	
 	/***************************************
 	****************************************
 	** Graphical Setup
 	****************************************
 	***************************************/
+	//make the main frame
+	mainWindow = new TGMainFrame(parent,width,height);
 	//make the sub frames
 	mainOrganizer = new TGVerticalFrame(this, 10, 10);
 	statesFrame = new TGHorizontalFrame(mainOrganizer, 10, 10);
@@ -118,7 +90,6 @@ SimpleCSDialog::SimpleCSDialog(const TGWindow *p, TGWindow *main, CSBounds* bndD
 	maxThetaFrame = new TGHorizontalFrame(mainOrganizer, 10, 10);
 	segsFrame = new TGHorizontalFrame(mainOrganizer, 10, 10);
 	phiFrame = new TGHorizontalFrame(mainOrganizer, 10, 10);
-	buttonFrame = new TGHorizontalFrame(mainOrganizer, 10, 10);
 	
 	//make the number entry boxes and add each on to its frame
 	numStatesEntry = new TGNumberEntry( statesFrame, 1.0, 5, StatesEntry, TGNumberFormat::kNESInteger,
@@ -169,15 +140,6 @@ SimpleCSDialog::SimpleCSDialog(const TGWindow *p, TGWindow *main, CSBounds* bndD
 	sep2 = new TGHorizontal3DLine(mainOrganizer,2,4);
 	sep3 = new TGHorizontal3DLine(mainOrganizer,2,4);
 	sep4 = new TGHorizontal3DLine(mainOrganizer,2,4);
-	sep5 = new TGHorizontal3DLine(mainOrganizer,2,4);
-	
-	//create, connect and add the buttons
-	okBut = new TGTextButton(buttonFrame,"OK", OKButton);
-	okBut->Connect("Clicked()","SimpleCSDialog",this,"goodFinish()");
-	buttonFrame->AddFrame(okBut, new TGLayoutHints(kLHintsExpandX, 5, 5, 3, 4) );
-	cancelBut = new TGTextButton(buttonFrame,"Cancel", CancelButton);
-	cancelBut->Connect("Clicked()","SimpleCSDialog",this,"CloseWindow()");
-	buttonFrame->AddFrame(cancelBut, new TGLayoutHints(kLHintsExpandX, 5, 5, 3, 4) );
 	
 	
 	//now add everything to the mainOrganizer frame in the appropriate order
@@ -206,107 +168,42 @@ SimpleCSDialog::SimpleCSDialog(const TGWindow *p, TGWindow *main, CSBounds* bndD
 	
 	mainOrganizer->AddFrame(sep5, new TGLayoutHints(kLHintsExpandX,5,5,3,4) );
 	
-	mainOrganizer->AddFrame(buttonFrame, new TGLayoutHints(kLHintsExpandX,5,5,3,4) );
-	
 	//set the name for dialog
-	SetWindowName("CS Info Dialog");
+	mainWindow->SetWindowName("CS Info Dialog");
 	//now add the mainOrganizer frame to this dialog
-	AddFrame(mainOrganizer, new TGLayoutHints( kLHintsExpandX | kLHintsTop ,5,5,3,4) );
+	mainWindow->AddFrame(mainOrganizer, new TGLayoutHints( kLHintsExpandX | kLHintsTop ,5,5,3,4) );
 	//map the subwindows
-	MapSubwindows();
+	mainWindow->MapSubwindows();
 	//init the layout engine
-	TGDimension size = GetDefaultSize();
-	Resize(size);
-	//center relative to parent
-	CenterOnParent();
-	//make non-resizable
-	SetWMSize(size.fWidth, size.fHeight);
-	SetWMSizeHints(size.fWidth, size.fHeight, 10000, 10000, 1, 1);
+	mainWindow->Resize(mainWindow->GetDefaultSize());
 	
-	SetMWMHints(kMWMDecorAll | kMWMDecorResizeH  | kMWMDecorMaximize | kMWMDecorMinimize | kMWMDecorMenu,
+	mainWindow->SetMWMHints(kMWMDecorAll | kMWMDecorResizeH  | kMWMDecorMaximize | kMWMDecorMinimize | kMWMDecorMenu,
                kMWMFuncAll |  kMWMFuncResize    | kMWMFuncMaximize | kMWMFuncMinimize,
                kMWMInputModeless);
-	//now map this to the screen
-	MapWindow();
-	fClient->WaitFor(this);
 }
 
-SimpleCSDialog::~SimpleCSDialog()
+BasicCSDialog::~BasicCSDialog()
 {
-	Cleanup();
-	if(IsZombie()){return;}
-	okBut->Disconnect("Clicked()");
-	cancelBut->Disconnect("Clicked()");
-	//if my understanding is good then everything else should be deleted as part of the standard process
+	delete mainWindow;
 }
 
-void SimpleCSDialog::CloseWindow()
+void BasicCSDialog::show()
 {
-	bData->goodReturn = false;
-	DeleteWindow();
+	mainWindow->MapWindow();
 }
 
-void SimpleCSDialog::goodFinish()
+void BasicCSDialog::hide()
 {
-	bData->goodReturn = true;
-	DeleteWindow();
+	mainWindow->UnmapWindow();
 }
 
-Bool_t SimpleCSDialog::ProcessMessage(Long_t msg, Long_t param1, Long_t param2)
+void BasicCSDialog::getVals(CSBounds* bnds)
 {
-	if( GET_MSG(msg) == kC_TEXTENTRY )
-	{
-		switch( GET_SUBMSG(msg) )
-		{
-			case  kTE_TEXTCHANGED:
-				this->update(param1);
-				break;
-			case kTE_ENTER:
-				this->update(param1);
-				break;
-			case kTE_TAB:
-				break;
-			default:
-				break;
-		}
-	}
-	/*else if ( (GET_MSG(msg) == kC_COMMAND) && (GET_SUBMSG(msg) == kCM_BUTTON) )
-	{
-		if( param1 == CancelButton)
-		{
-			bData->goodReturn = false;
-			DeleteWindow();	
-		}
-		else if( param1 == OKButton)
-		{
-			bData->goodReturn = true;
-			DeleteWindow();
-		}
-	}*/
-	
-	return kTRUE;
-}
-
-inline void SimpleCSDialog::update(int param)
-{
-	switch(param)
-	{
-		case SimpleCSDialog::StatesEntry:
-			bData->numStates = numStatesEntry->GetIntNumber();
-			break;
-		case SimpleCSDialog::MinEntry:
-			bData->minTheta = minThetaEntry->GetNumber();
-			break;
-		case SimpleCSDialog::MaxEntry:
-			bData->maxTheta = maxThetaEntry->GetNumber();
-			break;
-		case SimpleCSDialog::SegsEntry:
-			bData->thetaSegs = numSegsEntry->GetIntNumber();
-			break;
-		case SimpleCSDialog::PhiEntry:
-			bData->phiWidth = phiWidthEntry->GetNumber();
-			break;
-	}
+	bnds->numStates = numStatesEntry->GetIntNumber();
+	bnds->minTheta  = minThetaEntry->GetNumber();
+	bnds->maxTheta  = maxThetaEntry->GetNumber();
+	bnds->thetaSegs = numSegsEntry->GetIntNumber();
+	bnds->phiWidth  = phiWidthEntry->GetNumber();
 }
 
 #endif
