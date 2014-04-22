@@ -45,7 +45,7 @@ using std::ios_base;
 #include"guiSupport.h"
 #include"BasicCSDialog.h"
 
-enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs, BasicCsInfoSimple, BasicCSInfoPerRun};
+enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs, BasicCSInfoSimple, BasicCSInfoPerRun};
 enum UpdateCallType{ Initial, Normal, Final};
 
 TCut RayCut;
@@ -106,7 +106,7 @@ private:
 	
 	double calculateBGNorm(int runN);
 	
-	double calcCrossSection(double counts, const RunData* data, double thWidth, double phWidth);
+	double calcCrossSection(double counts, const RunData& data, double thWidth, double phWidth);
 	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
@@ -164,6 +164,9 @@ private:
 	void updateDisplay(const UpdateCallType& tp);
 	void updatePIDDisp(const UpdateCallType& tp);
 	void updateBGDisp(const UpdateCallType& tp);
+	void updateSubDisp(const UpdateCallType& tp);
+	void grabBasicCsInfoPerRun(const UpdateCallType& tp);
+	void grabBasicCsInfoSimple(const UpdateCallType& tp);
 
 	//Gui stuff
 	TGMainFrame *menu;
@@ -202,7 +205,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	
 	RayCut.SetTitle("Rayid==0");
 	
-	basicInfoGrabber = BasicCSDialog(parent,width,height);
+	basicInfoGrabber = new BasicCSDialog(parent,width,height);
 	
 	//create the area for the menu items
 	menu = new TGMainFrame(parent,width,height);
@@ -320,13 +323,13 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	TGLabel* csLabel = new TGLabel(csFrame, "Cross-Section Extraction");
 	csFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//Simple get cross-sections button
-	TGTextButton *scsBut = new TGTextButton(csFrame,"Get CS Params All Runs");
-	scsBut->Connect("Clicked()","MainWindow",this,"getBasicCSParamsSimple()");
-	csFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
+	TGTextButton *getCSParamsAllRunsBut = new TGTextButton(csFrame,"Get CS Params All Runs");
+	getCSParamsAllRunsBut->Connect("Clicked()","MainWindow",this,"getBasicCSParamsSimple()");
+	csFrame->AddFrame(getCSParamsAllRunsBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//Simple get cross-sections button
-	TGTextButton *scsBut = new TGTextButton(csFrame,"Get CS Params Per Run");
-	scsBut->Connect("Clicked()","MainWindow",this,"getBasicCSParamsPerRun()");
-	csFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
+	TGTextButton *getCSParamsPerRunBut = new TGTextButton(csFrame,"Get CS Params Per Run");
+	getCSParamsPerRunBut->Connect("Clicked()","MainWindow",this,"getBasicCSParamsPerRun()");
+	csFrame->AddFrame(getCSParamsPerRunBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	//Simple get cross-sections button
 	TGTextButton *scsBut = new TGTextButton(csFrame,"Simple CS Extraction");
 	scsBut->Connect("Clicked()","MainWindow",this,"simpleGetCS()");
@@ -1306,16 +1309,17 @@ void MainWindow::showSubbedShapes()
 	updateDisplay(Initial);
 }
 
-void getBasicCSParamsSimple()
+void MainWindow::getBasicCSParamsSimple()
 {
 	if(!checkUpToFrFile())
 	{	return; }
+	cout<<"Once you have entered the parameters you can immediately press End Display"<<endl;
 	dispNum = 0;
 	dispFunc = BasicCSInfoSimple;
 	updateDisplay(Initial);
 }
 
-void getBasicCSParamsPerRun()
+void MainWindow::getBasicCSParamsPerRun()
 {
 	if(!checkUpToFrFile())
 	{	return; }
@@ -1389,7 +1393,7 @@ void MainWindow::simpleGetCS()
 		if(spec==NULL)
 		{	return;	}
 		
-		cout<<numStates<<"  "<<thetaMin<<"  "<<thetaMax<<"  "<<numSegs<<"  "<<delta<<"  "<<phiWidth
+		//cout<<numStates<<"  "<<thetaMin<<"  "<<thetaMax<<"  "<<numSegs<<"  "<<delta<<"  "<<phiWidth;
 		
 		spec->Draw("colz");
 		whiteBoard->SetLogy(0);
@@ -1404,7 +1408,7 @@ void MainWindow::simpleGetCS()
 		//get the lines defining the state bounds
 		for(int j=0; j<numStates; ++j)
 		{
-			cout<<"Please draw the line that defines the lower bound in xfp for the state "<<(j+1)<<endl;
+			cout<<"Please draw the line that defines the lower bound in xfp for state "<<(j+1)<<endl;
 			TLine* line = (TLine*)gPad->WaitPrimitive("TLine","Line");
 			float x1 = line->GetX1();
 			float x2 = line->GetX2();
@@ -1414,7 +1418,7 @@ void MainWindow::simpleGetCS()
 			b[2*j] = ( ((x2*y1)-(x1*y2)) / (y1-y2) );
 			line->Delete();
 			
-			cout<<"Please draw the line that defines the upper bound in xfp for the state "<<(j+1)<<endl;
+			cout<<"Please draw the line that defines the upper bound in xfp for state "<<(j+1)<<endl;
 			TLine* line = (TLine*)gPad->WaitPrimitive("TLine","Line");
 			x1 = line->GetX1();
 			x2 = line->GetX2();
@@ -1432,7 +1436,7 @@ void MainWindow::simpleGetCS()
 		for(int j=0; j<numSegs; ++j)
 		{
 			float lowAngle = thetaMin + (j * delta);
-			float highAngle = lowAngle + angleWidth;
+			float highAngle = lowAngle + delta;
 			//bottom left | bottom right
 			yArr[0]=lowAngle; yArr[1]=lowAngle;
 			//top right | top left
@@ -1457,8 +1461,7 @@ void MainWindow::simpleGetCS()
 				TCutG* intBounds = new TCutG("bounds",5,xArr,yArr);
 				intBounds->SetVarX("Xfp");
 				intBounds->SetVarY("Thcorr");
-				double counts = intBounds->IntegralHist(subH2);
-				" angle, state 1 cs, state 1 cs err, state 2 cs, state 2 cs err, ..."
+				double counts = intBounds->IntegralHist(spec);
 				double cntsErr = TMath::Sqrt(counts);
 				output<< calcCrossSection(counts, runs[i], delta, phiWidth) <<", "<< calcCrossSection(cntsErr, runs[i], delta, phiWidth);
 				if(k != (numStates - 1))
@@ -1475,7 +1478,9 @@ void MainWindow::simpleGetCS()
 		delete[] b;
 		delete spec;
 	}
-	
+	whiteBoard->Clear();
+	whiteBoard->Update();
+	cout<<"Done Getting Cross-Sections"<<endl;
 }
 
 /******************************************
@@ -1892,7 +1897,7 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 	whiteBoard->Update();
 }
 
-void grabBasicCsInfoSimple(const UpdateCallType& tp)
+void MainWindow::grabBasicCsInfoSimple(const UpdateCallType& tp)
 {
 	switch(tp)
 	{
@@ -1902,17 +1907,14 @@ void grabBasicCsInfoSimple(const UpdateCallType& tp)
 			basicInfoGrabber->show();
 			break;
 		case Normal:
-			for( int i=0; i<numRuns; ++i)
-			{
-				basicInfoGrabber->getVals((csBnds+i));
-			}
-			numBnds = numRuns;
+			cout<<"Press End Dsiplay to record these parameters"<<endl;
 			break;
 		case Final:
 			for( int i=0; i<numRuns; ++i)
 			{
 				basicInfoGrabber->getVals((csBnds+i));
 			}
+			cout<<"These parameters are recorded for all runs"<<endl;
 			numBnds = numRuns;
 			basicInfoGrabber->hide();
 			break;
@@ -1923,7 +1925,7 @@ void grabBasicCsInfoSimple(const UpdateCallType& tp)
 	CSBounds* csBnds;
 	int numBnds;
 
-void grabBasicCsInfoPerRun(const UpdateCallType& tp)
+void MainWindow::grabBasicCsInfoPerRun(const UpdateCallType& tp)
 {
 	static int prevRun;
 	switch(tp)
@@ -1945,7 +1947,7 @@ void grabBasicCsInfoPerRun(const UpdateCallType& tp)
 				basicInfoGrabber->getVals( (csBnds+prevRun) );
 				basicInfoGrabber->setRunName(runs[dispNum].runNumber);
 			}
-			prevRun = dispNum
+			prevRun = dispNum;
 			break;
 		case Final:
 			basicInfoGrabber->getVals( (csBnds+dispNum) );
@@ -1979,6 +1981,16 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 		updateSubDisp(tp);
 		return;
 	}
+	else if(dispFunc == BasicCSInfoSimple)
+	{
+		grabBasicCsInfoSimple(tp);
+		return;
+	}
+	else if(dispFunc == BasicCSInfoPerRun)
+	{
+		grabBasicCsInfoPerRun(tp);
+		return;
+	}
 	else if(dispFunc == None)
 	{
 		cout<<"In update display with no display function"<<endl;
@@ -1995,37 +2007,29 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 	{
 		case PIDCut:
 			updatePIDDisp(tp);
-			return;
 			break;
 		case BGCut:
 			updateBGDisp(tp);
-			return;
 			break;
 		case ShapeDisp:
 			updateShapeDisp(tp);
-			return;
 			break;
 		case SubbedSpecs:
 			updateSubDisp(tp);
-			return;
 			break;
-		case BasicCsInfoSimple:
+		case BasicCSInfoSimple:
 			grabBasicCsInfoSimple(tp);
-			return;
 			break;
 		case BasicCSInfoPerRun:
 			grabBasicCsInfoPerRun(tp);
-			return;
 			break;
 		case None:
 			cout<<"In update display with no display function"<<endl;
 			cout<<"This should not be possible"<<endl;
-			return;
 			break;
 		default:
 			cout<<"In update display with an invalid display function"<<endl;
 			cout<<"This should not be possible"<<endl;
-			return;
 			break;
 	}
 }
@@ -2586,19 +2590,20 @@ double MainWindow::calculateBGNorm(TGraph* regions)
 	return (trWidth/bgWidth);
 }
 
+
 //returns d(sigma)/d(Omega) for that number of counts and rund data and angular region
-double MainWindow::calcCrossSection(double counts, const RunData* data, double thWidth, double phWidth)
+double MainWindow::calcCrossSection(double counts, const RunData& data, double thWidth, double phWidth)
 {
 	const double electronCharge = 1.602176487e-19;
-	//this if for the conversion from (mg/(cm^2)/AMU) --> (1/ mb)
+	//this is for the conversion from (mg/(cm^2)/AMU) --> (1/ mb)
 	// mg/AMU = 6.02213665167516e20   and 1/cm^2 = 10^-27 1/mb
 	const double massAndAreaConversion = 6.02213665167516e-7;
-	const double nano = 0.000000001
+	const double nano = 0.000000001;
 	const double pi = 3.141592653589793;
 	const double d2rConv = pi/180.0;
 	double solidAngle = (thWidth*d2rConv*(phWidth/1000.0));
 	double eff = ((double)data.grAccept)/((double)data.grRequest);
-	eff*= ((double)data.vdfEff);
+	eff*= ((double)data.vdcEff);
 	double incBeam = ( (((double)data.beamInt)*((double)data.biRange)*nano)/(1000.0* ((double)data.chargeState) * electronCharge) );
 	double targNum = (( (((double) data.thickness) * massAndAreaConversion) )/((double)data.targetMass) );
 	double denom = ( solidAngle*eff*incBeam*targNum );

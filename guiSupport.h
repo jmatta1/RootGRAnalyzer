@@ -10,7 +10,6 @@ const char *auxRootFileType[] = { "Aux Root File",     "*_aux.root",
 const char *frRootFileType[] = { "Friend Root File",     "*_frnd.root",
                                   0,                      0 };
 
-
 struct RunData
 {
 	int runNumber;

@@ -37,7 +37,7 @@ public:
 	
 	//Values function
 	void getVals(CSBounds* bnds);
-	void setVals(CSBounds* bnds)
+	void setVals(CSBounds* bnds);
 
 private:
 	//widgetNumberings
