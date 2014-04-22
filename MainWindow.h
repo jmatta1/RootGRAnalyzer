@@ -1313,7 +1313,7 @@ void MainWindow::getBasicCSParamsSimple()
 {
 	if(!checkUpToFrFile())
 	{	return; }
-	cout<<"Once you have entered the parameters you can immediately press End Display"<<endl;
+	cout<<"\nOnce you have entered the parameters you can immediately press End Display\n"<<endl;
 	dispNum = 0;
 	dispFunc = BasicCSInfoSimple;
 	updateDisplay(Initial);
@@ -1323,8 +1323,8 @@ void MainWindow::getBasicCSParamsPerRun()
 {
 	if(!checkUpToFrFile())
 	{	return; }
-	cout<<"To support using the next and prev spectra functions here you will need to"<<endl;
-	cout<<"all the way to the end of the list of runs using the next button before ending"<<endl;
+	cout<<"\nTo support using the next and prev spectra functions here you will need to"<<endl;
+	cout<<"all the way to the end of the list of runs using the next button before ending\n"<<endl;
 	dispNum = 0;
 	dispFunc = BasicCSInfoPerRun;
 	updateDisplay(Initial);
@@ -1928,6 +1928,7 @@ void MainWindow::grabBasicCsInfoSimple(const UpdateCallType& tp)
 void MainWindow::grabBasicCsInfoPerRun(const UpdateCallType& tp)
 {
 	static int prevRun;
+	static TH2F* subSpec;
 	switch(tp)
 	{
 		case Initial:
@@ -1948,61 +1949,47 @@ void MainWindow::grabBasicCsInfoPerRun(const UpdateCallType& tp)
 				basicInfoGrabber->setRunName(runs[dispNum].runNumber);
 			}
 			prevRun = dispNum;
+			if(subSpec!=NULL)
+			{
+				delete subSpec;
+				subSpec=NULL;
+			}
+			whiteBoard->Clear();
+			whiteBoard->Update();
 			break;
 		case Final:
 			basicInfoGrabber->getVals( (csBnds+dispNum) );
 			basicInfoGrabber->hide();
 			numBnds = (dispNum + 1);
+			if(subSpec!=NULL)
+			{
+				delete subSpec;
+				subSpec=NULL;
+			}
+			whiteBoard->Clear();
+			whiteBoard->Update();
+			return;
 			break;
+	}
+	
+	subSpec = testSubSpec( runs[dispNum].runNumber );
+	
+	if(	subSpec == NULL )
+	{	
+		cout<<"Spectrum display not possible for this run due to missing spectrum"<<endl;
+		cout<<"You will need to fix this before running the cross-section grabber"<<endl;
+	}
+	else
+	{
+		subSpec->Draw("colz");
+		gPad->SetLogy(0);
+		gPad->SetLogz(1);
+		whiteBoard->Update();
 	}
 }
 
 void MainWindow::updateDisplay(const UpdateCallType& tp)
 {
-	//I was using a switch statement for this but for some reason the interpretter was not handling it correctly
-	//replacing it with the if statement got the job done
-	/*if(dispFunc == PIDCut)
-	{
-		updatePIDDisp(tp);
-		return;
-	}
-	else if(dispFunc == BGCut)
-	{
-		updateBGDisp(tp);
-		return;
-	}
-	else if(dispFunc == ShapeDisp)
-	{
-		updateShapeDisp(tp);
-		return;
-	}
-	else if(dispFunc == SubbedSpecs)
-	{
-		updateSubDisp(tp);
-		return;
-	}
-	else if(dispFunc == BasicCSInfoSimple)
-	{
-		grabBasicCsInfoSimple(tp);
-		return;
-	}
-	else if(dispFunc == BasicCSInfoPerRun)
-	{
-		grabBasicCsInfoPerRun(tp);
-		return;
-	}
-	else if(dispFunc == None)
-	{
-		cout<<"In update display with no display function"<<endl;
-		cout<<"This should not be possible"<<endl;
-		return;
-	}
-	else
-	{
-		cout<<"In update display with an invalid display function"<<endl;
-		cout<<"This should not be possible"<<endl;
-		return;
-	}*/
 	switch(dispFunc)
 	{
 		case PIDCut:
