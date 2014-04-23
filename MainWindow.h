@@ -18,6 +18,7 @@ using std::ios_base;
 
 //root includes
 #include<TCanvas.h>
+#include<TRootEmbeddedCanvas.h>
 #include<TGFrame.h>
 #include<TGButton.h>
 #include<RQ_OBJECT.h>
@@ -181,6 +182,10 @@ private:
 	int dispNum;
 	DisplayFunction dispFunc;
 
+	/************************************************
+	**GUI Declarations
+	************************************************/
+
 	//Main Gui stuff
 	BasicCSDialog* basicInfoGrabber;
 	TSystem *sys;
@@ -189,7 +194,7 @@ private:
 	TRootEmbeddedCanvas *canvas;//holds the canvas we use for drawing
 	TCanvas *whiteBoard;//holds the pointer to the actual TCanvas in canvas
 	//Frames for organization
-	TGHorizontalFrame* organizerFrame;//the outermost organizer of the window
+	//TGHorizontalFrame* organizerFrame;//the outermost organizer of the window
 	TGVerticalFrame* canvasFrame;//holds the canvas and bottom bar
 	TGVerticalFrame* bottomFrame;//holds the canvas and bottom bar
 	TGVerticalFrame* sideBarFrame;//holds the sidebar and seq display bar
@@ -271,24 +276,34 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//create the main window for the gui
 	mainWindow = new TGMainFrame(parent,width,height);
 	
+	//create the embedded canvas
+	canvas = new TRootEmbeddedCanvas("canvas",mainWindow, 200, 200);
+	whiteBoard = canvas->GetCanvas();
+	whiteBoard->SetTitle("Whiteboard For Analysis");
+	gStyle->SetOptStat(0);
+	cout<<"Made Canvas"<<endl;
+	//add the canvas to its frame
+	mainWindow->AddFrame(canvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
+	
 	//create the frames for organizing everything
-	organizerFrame = new TGHorizontalFrame(mainWindow,width,height);
-	sideBarFrame = new TGVerticalFrame(organizerFrame,width,height);
+	//organizerFrame = new TGHorizontalFrame(mainWindow,width,height);
+	sideBarFrame = new TGVerticalFrame(mainWindow,width,height);
 	actionsFrame = new TGVerticalFrame(sideBarFrame,width,height);
 	seqDispFrame = new TGVerticalFrame(sideBarFrame,width,height);
-	canvasFrame = new TGVerticalFrame(organizerFrame,width,height);
-	bottomFrame = new TGVerticalFrame(canvasFrame,width,height);
+	//canvasFrame = new TGVerticalFrame(organizerFrame,width,height);
+	bottomFrame = new TGVerticalFrame(mainWindow,width,height);
 	fileOpsRowFrame = new TGHorizontalFrame(bottomFrame,width,height);
 	bottomBarFrame = new TGHorizontalFrame(bottomFrame,width,height);
 	fileActFrame = new TGHorizontalFrame(bottomBarFrame,width,height);
 	overallControlFrame = new TGHorizontalFrame(bottomBarFrame,width,height);
+	
+	cout<<"allocated frames"<<endl;
 	
 	//create and connect the buttons in the action bar
 	/******************************************
 	** Cut operations buttons
 	******************************************/
 	cutLabel = new TGLabel(actionsFrame, "Cuts");
-	actionsFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	//Get PIDs button
 	getPIDs = new TGTextButton(actionsFrame,"Get PID Cuts");
 	getPIDs->Connect("Clicked()","MainWindow",this,"getPIDCuts()");	
@@ -305,7 +320,6 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	** Shape operations buttons
 	******************************************/
 	shapeLabel = new TGLabel(actionsFrame, "Shapes");
-	actionsFrame->AddFrame(shapeLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	//Get shapes button
 	getShapesBut = new TGTextButton(actionsFrame,"Get Shapes");
 	getShapesBut->Connect("Clicked()","MainWindow",this,"getFirstOrdShapes()");
@@ -322,7 +336,6 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	** Get Cross-Sections buttons
 	******************************************/
 	csLabel = new TGLabel(actionsFrame, "CS Extraction");
-	actionsFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	//Simple get cross-sections button
 	getCSParamsAllRunsBut = new TGTextButton(actionsFrame,"Get Params All Runs");
 	getCSParamsAllRunsBut->Connect("Clicked()","MainWindow",this,"getBasicCSParamsSimple()");
@@ -334,20 +347,25 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	scsBut->Connect("Clicked()","MainWindow",this,"simpleGetCS()");
 	
 	//add the sidebar buttons to the action frame
+	actionsFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	actionsFrame->AddFrame(getPIDs, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	actionsFrame->AddFrame(dispPID, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	actionsFrame->AddFrame(getBG, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	actionsFrame->AddFrame(dispBG, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	actionsFrame->AddFrame(shapeLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	actionsFrame->AddFrame(getShapesBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	actionsFrame->AddFrame(makeBGSubBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	actionsFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	actionsFrame->AddFrame(showbgSubBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(getCSParamsPerRunBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	actionsFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	actionsFrame->AddFrame(getCSParamsAllRunsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	actionsFrame->AddFrame(getCSParamsPerRunBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	actionsFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	
+	cout<<"added action buttons"<<endl;
 	
 	//add the action frame to the sidebar frame
-	sideBarFrame->AddFrame(actionsFrame,  new TGLayoutHints(kLHintsExpandX | kLHintsTop, 2,2,2,2);
+	sideBarFrame->AddFrame(actionsFrame,  new TGLayoutHints(kLHintsTop | kLHintsCenterX, 2,2,2,2) );
 	
 	/******************************************
 	** Sequential Display buttons
@@ -370,20 +388,14 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	seqDispFrame->AddFrame(nextSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	seqDispFrame->AddFrame(endSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
+	cout<<"added sequence buttons buttons"<<endl;
 	//add the sequential display buttons to the bottom of the sidebar
-	sideBarFrame->AddFrame(seqDispFrame,  new TGLayoutHints(kLHintsExpandX | kLHintsBottom, 2,2,2,2);
+	sideBarFrame->AddFrame(seqDispFrame,  new TGLayoutHints(kLHintsBottom | kLHintsCenterX, 2,2,2,2) );
 	
 	//add the sidebar to the main organizer
-	organizerFrame->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsLeft, 2,2,2,2);
+	mainWindow->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsRight, 2,2,2,2) );
 	
-	//allocate the canvas
-	canvas = new TRootEmbeddedConvas("canvas",canvasFrame, width, height);
-	whiteBoard = canvas->GetCanvas();
-	whiteBoard->SetTitle("Whiteboard For Analysis");
-	whiteBoard->cd();
-	gStyle->SetOptStat(0);
-	//add the canvas to its frame
-	canvasFrame->AddFrame(canvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
+	cout<<"Preparing to create canvas"<<endl;
 	
 	/******************************************
 	** File operations
@@ -424,6 +436,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	fileOpsRowFrame->AddFrame(createFrFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	fileOpsRowFrame->AddFrame(opFrFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	
+	cout<<"added file ops buttons"<<endl;
 	//add the file operations frame to its frame
 	bottomFrame->AddFrame(fileOpsRowFrame, new TGLayoutHints(kLHintsExpandX | kLHintsTop, 2,2,2,2) );
 	
@@ -431,7 +444,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	** File Control buttons
 	******************************************/
 	fileControlLabel = new TGLabel(fileActFrame, "File Activation: ");
-	fileActFrame->AddFrame(fileControlLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	fileActFrame->AddFrame(fileControlLabel, new TGLayoutHints(kLHintsLeft,2,2,2,2));
 	//create and connect the file activation buttons
 	//make tree file the current dir
 	treeFocusBut = new TGTextButton(fileActFrame,"Tree File");
@@ -448,14 +461,15 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	fileActFrame->AddFrame(auxFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	fileActFrame->AddFrame(frFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	
+	cout<<"added file ctrl buttons"<<endl;
 	//add the file activation frame to its frame
-	bottomBarFrame>AddFrame(fileActFrame, new TGLayoutHints(kLHintsExpandX, 2,2,2,2) );
+	bottomBarFrame->AddFrame(fileActFrame, new TGLayoutHints(kLHintsLeft, 2,2,2,2) );
 	
 	/******************************************
 	** Overall Control buttons
 	******************************************/
 	controlLabel = new TGLabel(overallControlFrame, "Overall Control: ");
-	overallControlFrame->AddFrame(controlLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	overallControlFrame->AddFrame(controlLabel, new TGLayoutHints(kLHintsLeft,2,2,2,2));
 	//create and connect the overall control buttons
 	//reset button
 	resBut = new TGTextButton(overallControlFrame,"Reset");
@@ -468,40 +482,40 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//add the overall control buttons to their frame
 	overallControlFrame->AddFrame(resBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	overallControlFrame->AddFrame(exBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
-	
+	cout<<"added ctrl buttons"<<endl;
 	//add the overall control frame to its frame
-	bottomBarFrame>AddFrame(overallControlFrame, new TGLayoutHints(kLHintsExpandX, 2,2,2,2) );
+	bottomBarFrame->AddFrame(overallControlFrame, new TGLayoutHints(kLHintsExpandX, 2,2,2,2) );
 	
 	//add the bottomBarFrame to its frame
 	bottomFrame->AddFrame(bottomBarFrame, new TGLayoutHints(kLHintsExpandX | kLHintsBottom, 2,2,2,2) );
 	
 	//add the bottom frame to its frame
-	canvasFrame->AddFrame(bottomFrame, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
+	mainWindow->AddFrame(bottomFrame, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
 	
 	//add the canvasFrame to the overall frame
-	organizerFrame->AddFrame(canvasFrame,  new TGLayoutHints(kLHintsLeft, 2,2,2,2);
+	//organizerFrame->AddFrame(canvasFrame,  new TGLayoutHints(kLHintsLeft, 2,2,2,2) );
 	
 	//add the overall frame to the mainwindow
-	mainWindow->AddFrame(canvasFrame,  new TGLayoutHints(kLHintsNoHints, 2,2,2,2);
+	//mainWindow->AddFrame(canvasFrame,  new TGLayoutHints(kLHintsNoHints, 2,2,2,2) );
 	
 	//set the name of the main frame
 	mainWindow->SetWindowName("Analysis GUI");
-	
+	cout<<"Starting to map subwindows"<<endl;
 	//go through the steps to draw this beast
 	//map the subwindows
 	mainWindow->MapSubwindows();
 	//init the layout engine
-	mainWindow->Resize(menu->GetDefaultSize());
+	mainWindow->Resize(mainWindow->GetDefaultSize());
+	cout<<"Mapping window"<<endl;
 	//map the main frame
 	mainWindow->MapWindow();
 }
 
 MainWindow::~MainWindow()
 {
-	menu->Cleanup();
-	delete whiteBoard;
+	mainWindow->Cleanup();
 	delete basicInfoGrabber;
-	delete menu;
+	delete mainWindow;
 	//delete sys;
 	//sys=NULL;
 	
