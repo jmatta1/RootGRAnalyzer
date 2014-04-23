@@ -296,16 +296,16 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	TGTextButton *getShapesBut = new TGTextButton(cutFrame,"Get Shapes");
 	getShapesBut->Connect("Clicked()","MainWindow",this,"getFirstOrdShapes()");
 	cutFrame->AddFrame(getShapesBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
-	
+
+	//make bg sub spectra button
+	TGTextButton *makeBGSubBut = new TGTextButton(cutFrame,"Make Frnd Tree Specs");
+	makeBGSubBut->Connect("Clicked()","MainWindow",this,"makeBGSubSpecs()");
+	cutFrame->AddFrame(makeBGSubBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
+
 	//display shapes button
 	TGTextButton *showShapesBut = new TGTextButton(cutFrame,"Show Shapes");
 	showShapesBut->Connect("Clicked()","MainWindow",this,"showFirstOrdShapes()");
 	cutFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
-	
-	//make bg sub spectra button
-	TGTextButton *makeBGSubBut = new TGTextButton(cutFrame,"Make BG-Sub Spectra");
-	makeBGSubBut->Connect("Clicked()","MainWindow",this,"makeBGSubSpecs()");
-	cutFrame->AddFrame(makeBGSubBut, new TGLayoutHints(kLHintsExpandX,5,5,3,4));
 	
 	//display bgsub shapes button
 	TGTextButton *showbgSubBut = new TGTextButton(cutFrame,"Show BG-sub Shapes");
