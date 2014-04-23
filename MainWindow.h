@@ -167,16 +167,6 @@ private:
 	void updateSubDisp(const UpdateCallType& tp);
 	void grabBasicCsInfoPerRun(const UpdateCallType& tp);
 	void grabBasicCsInfoSimple(const UpdateCallType& tp);
-
-	//Gui stuff
-	TGMainFrame *menu;
-	TCanvas *whiteBoard;
-	BasicCSDialog* basicInfoGrabber;
-	TSystem *sys;
-	
-	//sequential display stuff
-	int dispNum;
-	DisplayFunction dispFunc;
 	
 	//analysis stuff
 	RunData* runs;
@@ -186,6 +176,19 @@ private:
 	TFile* mainFile;
 	TFile* auxFile;
 	TFile* frFile;
+
+	//sequential display stuff
+	int dispNum;
+	DisplayFunction dispFunc;
+
+	//Main Gui stuff
+	TGMainFrame *menu;
+	BasicCSDialog* basicInfoGrabber;
+	TSystem *sys;
+	//main window for display
+	TCanvas *whiteBoard;
+	
+	
 };
 
 MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
