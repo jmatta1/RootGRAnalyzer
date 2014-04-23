@@ -182,11 +182,18 @@ private:
 	DisplayFunction dispFunc;
 
 	//Main Gui stuff
-	TGMainFrame *menu;
 	BasicCSDialog* basicInfoGrabber;
 	TSystem *sys;
-	//main window for display
-	TCanvas *whiteBoard;
+	TGMainFrame *mainWindow;
+	//main canvas for display
+	TRootEmbeddedCanvas *canvas;//holds the canvas we use for drawing
+	TCanvas *whiteBoard;//holds the pointer to the actual TCanvas in canvas
+	//Frames for organization
+	TGVerticalFrame* organizerFrame;//the outermost organizer of the window
+	TGHorizontalFrame* cSBFrame;//holds the canvas and sidebar
+	TGVerticalFrame* sideBarFrame;//holds the sidebar
+	TGHorizontalFrame fileOpsRowFrame;//holds the row of buttons at the bottom for file operations
+	
 	
 	
 };
