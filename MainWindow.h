@@ -102,6 +102,7 @@ public:
 private:
 	//some private helper functions
 	void parseRunFileLine(const string& line, RunData& tempData);
+	void pushToLog();
 	bool checkUpToRunData();
 	bool checkUpToMainFile();
 	bool checkUpToAuxFile();
@@ -192,6 +193,8 @@ private:
 	BasicCSDialog* basicInfoGrabber;
 	TSystem *sys;
 	TGMainFrame *mainWindow;
+	//The string stream for building messages for the logger
+	ostringstream logStrm;
 	//main canvas for display
 	TRootEmbeddedCanvas *canvas;//holds the canvas we use for drawing
 	TCanvas *whiteBoard;//holds the pointer to the actual TCanvas in canvas
@@ -204,6 +207,9 @@ private:
 	TGHorizontalFrame* bottomBarFrame;//holds the subframes for file control and overall control
 	TGHorizontalFrame* fileActFrame;//holds the buttons for activating files
 	TGHorizontalFrame* overallControlFrame;//holds the overall control buttons
+	
+	//the message container for the window to try and make things so we do not need the terminal at all.
+	TGTextView* messageLog;
 	
 	//labels to store text
 	TGLabel* fileLabel;
@@ -248,7 +254,7 @@ private:
 	TGTextButton *auxFocusBut;
 	TGTextButton *frFocusBut;
 	
-	//overall controll buttons
+	//overall control buttons
 	TGTextButton *resBut;
 	TGTextButton *exBut;
 };
@@ -477,13 +483,22 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//add the bottomBarFrame to its frame
 	bottomFrame->AddFrame(bottomBarFrame, new TGLayoutHints(kLHintsExpandX | kLHintsBottom, 2,2,2,2) );
 	
-	//add the bottom frame to its frame 
-	organizerFrame->AddFrame(bottomFrame, new TGLayoutHints(kLHintsExpandX | kLHintsBottom, 2,2,2,2) );
 	//add the canvasFrame to the overall frame
 	organizerFrame->AddFrame(canvasFrame,  new TGLayoutHints(kLHintsRight | kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
 	
+	//add the bottom frame to its frame 
+	organizerFrame->AddFrame(bottomFrame, new TGLayoutHints(kLHintsExpandX, 2,2,2,2) );
+	
+	/******************************************
+	** Message Log
+	******************************************/
+	//create the message log
+	messageLog = new TGTextView(organizerFrame,1,100,"Welcome to the Notre Dame Giant Resonance Analysis GUI");
+	//add the message log to the organizer frame
+	organizerFrame->AddFrame(messageLog,  new TGLayoutHints( kLHintsExpandX | kLHintsCenterX, 2,2,2,2) );
+	
 	//add the overall frame to the mainwindow
-	mainWindow->AddFrame(organizerFrame,  new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
+	mainWindow->AddFrame(organizerFrame,  new TGLayoutHints(kLHintsExpandX | kLHintsExpandY | kLHintsBottom, 2,2,2,2) );
 	
 	//set the name of the main frame
 	mainWindow->SetWindowName("Analysis GUI");
@@ -544,7 +559,8 @@ void MainWindow::readRunData()
 {
 	if (runs != NULL)
 	{
-		cout<<"\nRun data already loaded, to load new run data, use the reset button"<<endl;
+		logStrm<<"\nRun data already loaded, to load new run data, use the reset button";
+		pushToLog();
 		return;
 	}
 	//get the file name using a file dialog
@@ -558,7 +574,7 @@ void MainWindow::readRunData()
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
 	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDOpen, &fileInfo);
-	//cout<<fileInfo.fFilename<<", "<<fileInfo.fIniDir<<endl;
+	//cout<<fileInfo.fFilename<<", "<<fileInfo.fIniDir;
 	directory = fileInfo.fIniDir;
 	
 	if(TString(fileInfo.fFilename).IsNull())
@@ -585,7 +601,6 @@ void MainWindow::readRunData()
 	//jump back to the beginning
 	input.clear();
 	input.seekg(0,ios_base::beg);
-	//cout<<numRuns<<endl;
 	//allocate the runs array
 	runs = new RunData[numRuns];
 	//now read line by line to get the run data
@@ -597,7 +612,8 @@ void MainWindow::readRunData()
 		getline(input, line);
 		++count;
 	}
-	cout<<"\nRun data has been loaded"<<endl;
+	logStrm<<"\nRun data has been loaded";
+	pushToLog();
 	csBnds = new CSBounds[numRuns];
 }
 
@@ -607,13 +623,16 @@ void MainWindow::buildBigFile()
 	{	return; }
 	else if (mainFile != NULL)
 	{
-		cout<<"\nA combined file is already loaded, use reset to create another"<<endl;
+		logStrm<<"\nA combined file is already loaded, use reset to create another";
+		pushToLog();
 		return;
 	}
 	else
 	{
-		cout<<"\nWarning, this function assumes that the big file"<<endl;
-		cout<<"is saved in the same folder as the the original data"<<endl;
+		logStrm<<"\nWarning, this function assumes that the big file";
+		pushToLog();
+		logStrm<<"is saved in the same folder as the the original data";
+		pushToLog();
 	}
 	//get the file name using a file dialog
 	static TString directory(".");
@@ -653,12 +672,11 @@ void MainWindow::buildBigFile()
 		TTree* nTree = new TTree(name.c_str(), name.c_str());
 		//nTree->SetAutoSave(1048576);
 		//nTree->SetAutoFlush(10000);
-		//cout<<mainFile<<" "<<nTree->GetCurrentFile()<<endl;
 		//open the file with the old tree
 		TFile* file = new TFile(fileName.c_str(),"READ");
 		TTree* oTree = (TTree*)file->Get("h1000");
 		mainFile->cd();
-		cout<<"Starting to process run"<<runs[i].runNumber<<"..."<<std::flush;
+		logStrm<<"Starting to process run"<<runs[i].runNumber<<"...";
 		//loop through all the branches of the old tree adding them to the new tree
 		TObjArray* branchList = (TObjArray*)(oTree->GetListOfBranches()->Clone());
 		branchList->SetOwner(kFALSE);
@@ -679,7 +697,8 @@ void MainWindow::buildBigFile()
 			oTree->GetEntry(k);
 			nTree->Fill();
 		}
-		cout<<"  processed "<<numEnts<<" nTuples"<<endl;
+		logStrm<<"  processed "<<numEnts<<" nTuples";
+		pushToLog();
 		delete oTree;
 		delete file;
 		nTree->FlushBaskets();
@@ -689,11 +708,13 @@ void MainWindow::buildBigFile()
 		delete nTree;
 		delete[] vals;
 	}
-	cout<<"Done Processing"<<endl;
+	logStrm<<"Done Processing";
+	pushToLog();
 	mainFile->Close();
 	delete mainFile;
 	mainFile = new TFile(temp.c_str(),"READ");
-	cout<<"Combined file opened in read only mode"<<endl;
+	logStrm<<"Combined file opened in read only mode";
+	pushToLog();
 }
 
 void MainWindow::openBigFile()
@@ -702,7 +723,8 @@ void MainWindow::openBigFile()
 	{	return; }
 	if (mainFile != NULL)
 	{
-		cout<<"\nCombined file already loaded, to load a different one, use the reset button"<<endl;
+		logStrm<<"\nCombined file already loaded, to load a different one, use the reset button";
+		pushToLog();
 		return;
 	}
 	
@@ -731,7 +753,8 @@ void MainWindow::openBigFile()
 	
 	//open the big file
 	mainFile = new TFile(temp.c_str(),"READ");
-	cout<<"\nCombined file opened in read only mode"<<endl;
+	logStrm<<"\nCombined file opened in read only mode";
+	pushToLog();
 }
 
 void MainWindow::makeAuxFile()
@@ -740,7 +763,8 @@ void MainWindow::makeAuxFile()
 	{	return; }
 	if(auxFile != NULL)
 	{
-		cout<<"\nAux file already loaded, to load a different one, use the reset button"<<endl;
+		logStrm<<"\nAux file already loaded, to load a different one, use the reset button";
+		pushToLog();
 		return;
 	}
 	//get the file name using a file dialog
@@ -768,7 +792,8 @@ void MainWindow::makeAuxFile()
 	
 	//create the aux file
 	auxFile = new TFile(temp.c_str(),"RECREATE");
-	cout<<"\nAux File Created"<<endl;
+	logStrm<<"\nAux File Created";
+	pushToLog();
 }
 
 void MainWindow::openAuxFile()
@@ -777,7 +802,8 @@ void MainWindow::openAuxFile()
 	{	return; }
 	if(auxFile != NULL)
 	{
-		cout<<"\nAux file already loaded, to load a different one, use the reset button"<<endl;
+		logStrm<<"\nAux file already loaded, to load a different one, use the reset button";
+		pushToLog();
 		return;
 	}
 	//get the file name using a file dialog
@@ -805,7 +831,8 @@ void MainWindow::openAuxFile()
 	
 	//open the aux file
 	auxFile = new TFile(temp.c_str(),"UPDATE");
-	cout<<"\nAux File Opened"<<endl;
+	logStrm<<"\nAux File Opened";
+	pushToLog();
 }
 
 
@@ -815,7 +842,8 @@ void MainWindow::makeFriendFile()
 	{	return; }
 	else if( frFile != NULL )
 	{
-		cout<<"\nFriend file already loaded, to load a different one, use the reset button"<<endl;
+		logStrm<<"\nFriend file already loaded, to load a different one, use the reset button";
+		pushToLog();
 		return;
 	}
 	//get the file name using a file dialog
@@ -843,7 +871,8 @@ void MainWindow::makeFriendFile()
 	
 	//create the aux file
 	frFile = new TFile(temp.c_str(),"RECREATE");
-	cout<<"\nFriend File Created"<<endl;
+	logStrm<<"\nFriend File Created";
+	pushToLog();
 }
 
 void MainWindow::openFriendFile()
@@ -852,7 +881,8 @@ void MainWindow::openFriendFile()
 	{	return; }
 	if( frFile != NULL )
 	{
-		cout<<"\nFriend file already loaded, to load a different one, use the reset button"<<endl;
+		logStrm<<"\nFriend file already loaded, to load a different one, use the reset button";
+		pushToLog();
 		return;
 	}
 	//get the file name using a file dialog
@@ -880,7 +910,8 @@ void MainWindow::openFriendFile()
 	
 	//open the aux file
 	frFile = new TFile(temp.c_str(),"UPDATE");
-	cout<<"\nFriend File Opened"<<endl;
+	logStrm<<"\nFriend File Opened";
+	pushToLog();
 }
 
 /******************************************
@@ -896,7 +927,8 @@ void MainWindow::getPIDCuts()
 	
 	for(int i=0; i<numRuns; ++i)
 	{
-		cout<<"Loading run "<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
+		logStrm<<"Loading run "<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
+		pushToLog();
 		//make the PID cut name
 		string cName = makePIDCutName(runs[i].runNumber);
 		//retrive the tree
@@ -909,7 +941,6 @@ void MainWindow::getPIDCuts()
 		string drawCommand = "Pi1:Pi2>>";
 		drawCommand.append(histName);
 		drawCommand.append("(200,0,600,200,0,600)");
-		//cout<<histName<<"  "<<drawCommand<<endl;
 		temp->Draw(drawCommand.c_str(),RayCut,"colz");
 		TH2F* tempH2 = reinterpret_cast<TH2F*>(gDirectory->Get(histName.c_str()));
 		ostringstream histTitle;
@@ -920,10 +951,10 @@ void MainWindow::getPIDCuts()
 		gPad->SetLogy(0);
 		whiteBoard->SetLogz(1);
 		whiteBoard->Update();
-		cout<<"Please give PID cut."<<endl;
+		logStrm<<"Please give PID cut.";
+		pushToLog();
 		//wait for the user to enter the cut then retrieve it
 		TCutG* cut=(TCutG*)gPad->WaitPrimitive("CUTG","CutG");
-		//cout<<cut->GetVarX()<<"  "<<cut->GetVarY()<<endl;
 		//change the name of the cut to something more descriptive
 		cut->SetName(cName.c_str());
 		//make sure the cut has the correct x and y values
@@ -934,18 +965,19 @@ void MainWindow::getPIDCuts()
 		(*baseCut) = RayCut && cut->GetName();
 		string baseCutName = makeBaseCutName(runs[i].runNumber);
 		baseCut->SetName(baseCutName.c_str());
-		//cout<<cut->GetVarX()<<"  "<<cut->GetVarY()<<endl;
 		//now save the cuts to auxFile
 		auxFile->cd();
 		cut->Write(cName.c_str(),TObject::kOverwrite);
 		baseCut->Write(baseCutName.c_str(),TObject::kOverwrite);
 		if( i != (numRuns-1))
 		{
-			cout<<"Cut saved, preparing for next cut"<<endl;
+			logStrm<<"Cut saved, preparing for next cut";
+			pushToLog();
 		}
 		else
 		{
-			cout<<"Final cut saved. Erasing white board and exitting function"<<endl;
+			logStrm<<"Final cut saved. Erasing white board and exitting function";
+			pushToLog();
 		}
 		//now delete the cut and the histogram
 		delete baseCut;
@@ -973,12 +1005,18 @@ void MainWindow::getBGCuts()
 	if(!checkUpToAuxFile())
 	{	return; }
 	
-	cout<<"\nWhen prompted to give regions, click at each of the four\nfollowing points specified, in any order"<<endl;
-	cout<<"The points are:\nLower bnd of the lower bg region\nUpper bnd of the lower bg region (also the lower bnd of the true region)"<<endl;
-	cout<<"Lower bnd of the upper bg region (also the upper bnd of the true region)\nUpper bnd of the upper bg region"<<endl;
-	cout<<"Only the first 4 clicks will be used, double click when done selecting regions\n"<<endl;
-	cout<<"\nWARNING: If you have already constructed bg subtracted histograms"<<endl;
-	cout<<"you will need to reconstruct them after running this function"<<endl;
+	logStrm<<"\nWhen prompted to give regions, click at each of the four\nfollowing points specified, in any order";
+	pushToLog();
+	logStrm<<"The points are:\nLower bnd of the lower bg region\nUpper bnd of the lower bg region (also the lower bnd of the true region)";
+	pushToLog();
+	logStrm<<"Lower bnd of the upper bg region (also the upper bnd of the true region)\nUpper bnd of the upper bg region";
+	pushToLog();
+	logStrm<<"Only the first 4 clicks will be used, double click when done selecting regions\n";
+	pushToLog();
+	logStrm<<"\nWARNING: If you have already constructed bg subtracted histograms";
+	pushToLog();
+	logStrm<<"you will need to reconstruct them after running this function";
+	pushToLog();
 	
 	for(int i=0; i<numRuns; ++i)
 	{
@@ -997,7 +1035,8 @@ void MainWindow::getBGCuts()
 		string drawCommand = cmdBuilder.str();
 
 		//draw the spectrum
-		cout<<"Loading run "<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
+		logStrm<<"Loading run "<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
+		pushToLog();
 		tree->Draw(drawCommand.c_str(), (*baseCut));
 		TH1F* tempH1 = reinterpret_cast<TH1F*>(gDirectory->Get(histName.c_str()));
 		ostringstream titleBuilder;
@@ -1007,7 +1046,8 @@ void MainWindow::getBGCuts()
 		whiteBoard->SetLogy(1);
 		whiteBoard->Update();
 		//get the BG ranges
-		cout<<"Please give regions"<<endl;
+		logStrm<<"Please give regions";
+		pushToLog();
 		TGraph* graph = (TGraph*)pd->WaitPrimitive("Graph","PolyLine");
 		//get the array of x values (which are Yfp values)
 		Double_t* xValOld = graph->GetX();
@@ -1031,17 +1071,13 @@ void MainWindow::getBGCuts()
 		ostringstream cutBuilder;
 		cutBuilder<<"( ("<<xValArr[0]<<"<Yfp) && (Yfp<"<<xValArr[1]<<") ) ||  ( ("<<xValArr[2]<<"<Yfp) && (Yfp<"<<xValArr[3]<<") )";
 		string backgroundCut = cutBuilder.str();
-		//cout<<backgroundCut<<endl;
 		TCut* bgCut = new TCut(bgCutName.c_str(),backgroundCut.c_str());
-		//cout<<bgCut->GetTitle()<<endl;
 		//generate the true cut
 		string trCutName = makeTRCutName(runs[i].runNumber);
 		cutBuilder.str("");
 		cutBuilder<<"("<<xValArr[1]<<"<Yfp) && (Yfp<"<<xValArr[2]<<")";
 		string trueCut = cutBuilder.str();
-		//cout<<trueCut<<endl;
 		TCut* trCut = new TCut(trCutName.c_str(),trueCut.c_str());
-		//cout<<trCut->GetTitle()<<endl;
 		//write everything to disk
 		auxFile->cd();
 		bgGraph->Write(gName.c_str(),TObject::kOverwrite);
@@ -1050,15 +1086,19 @@ void MainWindow::getBGCuts()
 		tempH1->Write(histName.c_str(),TObject::kOverwrite);
 		auxFile->Flush();
 		
-		cout<<"True region: "<<trCut->GetTitle()<<endl;
-		cout<<"Bgnd region: "<<bgCut->GetTitle()<<endl;
+		logStrm<<"True region: "<<trCut->GetTitle();
+		pushToLog();
+		logStrm<<"Bgnd region: "<<bgCut->GetTitle();
+		pushToLog();
 		if( i != (numRuns-1))
 		{
-			cout<<"Cut saved, preparing for next cut"<<endl;
+			logStrm<<"Cut saved, preparing for next cut";
+			pushToLog();
 		}
 		else
 		{
-			cout<<"Final cut saved. Erasing white board and exitting function"<<endl;
+			logStrm<<"Final cut saved. Erasing white board and exitting function";
+			pushToLog();
 		}
 		delete graph;
 		delete bgGraph;
@@ -1095,18 +1135,22 @@ void MainWindow::getFirstOrdShapes()
 	if( !checkUpToFrFile() )
 	{	return; }
 	
-	//cout<<"checkUpToFrFile == "<<checkUpToFrFile()<<" frFile = "<<frFile<<endl;
 	
-	cout<<"\nWhen prompted click along the top and bottom edges of the high counts region of the spectrum"<<endl;
-	cout<<"You must click at least 4 times, preferably more\n"<<endl;
-	cout<<"\nWARNING: If you have already constructed bg subtracted histograms"<<endl;
-	cout<<"you will need to reconstruct them after running this function"<<endl;
+	logStrm<<"\nWhen prompted click along the top and bottom edges of the high counts region of the spectrum";
+	pushToLog();
+	logStrm<<"You must click at least 4 times, preferably more\n";
+	pushToLog();
+	logStrm<<"\nWARNING: If you have already constructed bg subtracted histograms";
+	pushToLog();
+	logStrm<<"you will need to reconstruct them after running this function";
+	pushToLog();
 	
 	double* centers = new double[3*numRuns];
 	
 	for(int i=0; i<numRuns; ++i)
 	{
-		cout<<"Loading run "<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
+		logStrm<<"Loading run "<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
+		pushToLog();
 		//grab the tree
 		TTree* temp = testTree( runs[i].runNumber );
 		if(temp==NULL)
@@ -1128,12 +1172,14 @@ void MainWindow::getFirstOrdShapes()
 		whiteBoard->SetLogy(0);
 		whiteBoard->SetLogz(1);
 		whiteBoard->Update();
-		cout<<"Give Top Edge"<<endl;
+		logStrm<<"Give Top Edge";
+		pushToLog();
 		//wait for the user to enter the cut then retrieve it
 		TCutG* upper=(TCutG*)gPad->WaitPrimitive("Graph","PolyLine");
 		//change the name of the cut to something more descriptive
 		upper->SetName("top");
-		cout<<"Give Bottom Edge"<<endl;
+		logStrm<<"Give Bottom Edge";
+		pushToLog();
 		//wait for the user to enter the cut then retrieve it
 		TCutG* lower=(TCutG*)gPad->WaitPrimitive("Graph","PolyLine");
 		//change the name of the cut to something more descriptive
@@ -1150,9 +1196,6 @@ void MainWindow::getFirstOrdShapes()
 		centers[3*i]   = (tParams[0]+bParams[0])/2;
 		centers[3*i+1] = (tParams[1]+bParams[1])/2;
 		centers[3*i+2] = (tParams[2]+bParams[2])/2;
-	
-		
-		//cout<<centers[3*i]<<", "<<centers[3*i+1]<<", "<<centers[3*i+2]<<endl;
 		
 		//sleep for 2 seconds so the user can see the fitted edges
 		sys->Sleep(2000);
@@ -1166,13 +1209,16 @@ void MainWindow::getFirstOrdShapes()
 	whiteBoard->Clear();
 	whiteBoard->Update();
 	
-	cout<<"\nNow building friend trees with first order shape corrections."<<endl;
-	cout<<"This could take some time depending on the number of events in the trees.\n"<<endl;
+	logStrm<<"\nNow building friend trees with first order shape corrections.";
+	pushToLog();
+	logStrm<<"This could take some time depending on the number of events in the trees.\n";
+	pushToLog();
 	
 	for(int i=0; i<numRuns; ++i)
 	{
 		//force a new line
-		cout<<"\n";
+		logStrm<<"\n";
+		pushToLog();
 		//grab the tree, we do not need to test it because we tested it before so we
 		//simply use retrieveTree rather than testTree
 		TTree* orig = retrieveTree( runs[i].runNumber );
@@ -1189,7 +1235,8 @@ void MainWindow::getFirstOrdShapes()
 			nameBuilder<<treeName<<";*";
 			string toBeDeleted = nameBuilder.str();
 			frFile->Delete(toBeDeleted.c_str());
-			cout<<"Deleted original friend tree so we can build a replacement"<<endl;
+			logStrm<<"Deleted original friend tree so we can build a replacement";
+			pushToLog();
 		}
 		TTree* frnd = new TTree(treeName.c_str(),treeName.c_str());
 		//put the polynomial parameters for this run into quick variables
@@ -1207,7 +1254,8 @@ void MainWindow::getFirstOrdShapes()
 		
 		Long64_t numEnts = (orig->GetEntries());
 		float avg = 0.0;
-		cout<<"Preparing to apply first order shape corection to run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
+		logStrm<<"Preparing to apply first order shape corection to run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
+		pushToLog();
 		//fill the new tree
 		for(Long64_t j = 0; j<numEnts; ++j)
 		{
@@ -1224,13 +1272,15 @@ void MainWindow::getFirstOrdShapes()
 		TFile* file = frnd->GetCurrentFile();
 		file->Flush();
 		
-		cout<<"Finished Constructing Friend Tree"<<endl;
+		logStrm<<"Finished Constructing Friend Tree";
+		pushToLog();
 		
 		delete frnd;
 		delete orig;
 	}
 	delete[] centers;
-	cout<<"Done performing first order corrections"<<endl;
+	logStrm<<"Done performing first order corrections";
+	pushToLog();
 }
 
 void MainWindow::showFirstOrdShapes()
@@ -1247,12 +1297,14 @@ void MainWindow::makeBGSubSpecs()
 	if( !checkUpToFrFile() )
 	{	return; }
 	
-	cout<<"\n";
+	logStrm<<"\n";
+	pushToLog();
 	
 	//loop across loaded runs
 	for(int i=0; i<numRuns; ++i)
 	{
-		cout<<"Preparing to construct specta for run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns<<endl;
+		logStrm<<"Preparing to construct specta for run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
+		pushToLog();
 		int runN = runs[i].runNumber;
 		//load the friend tree
 		TTree* frnd = testFirstOrderShapeTree( runN );
@@ -1372,7 +1424,8 @@ void MainWindow::makeBGSubSpecs()
 		delete bgGraph;
 		delete pidCut;
 	}
-	cout<<"Done constructing histograms"<<endl;
+	logStrm<<"Done constructing histograms";
+	pushToLog();
 }
 
 void MainWindow::showSubbedShapes()
@@ -1388,7 +1441,8 @@ void MainWindow::getBasicCSParamsSimple()
 {
 	if(!checkUpToFrFile())
 	{	return; }
-	cout<<"\nOnce you have entered the parameters you can immediately press End Display\n"<<endl;
+	logStrm<<"\nOnce you have entered the parameters you can immediately press End Display\n";
+	pushToLog();
 	dispNum = 0;
 	dispFunc = BasicCSInfoSimple;
 	updateDisplay(Initial);
@@ -1398,8 +1452,10 @@ void MainWindow::getBasicCSParamsPerRun()
 {
 	if(!checkUpToFrFile())
 	{	return; }
-	cout<<"\nTo support using the next and prev spectra functions here you will need to"<<endl;
-	cout<<"all the way to the end of the list of runs using the next button before ending\n"<<endl;
+	logStrm<<"\nTo support using the next and prev spectra functions here you will need to";
+	pushToLog();
+	logStrm<<"all the way to the end of the list of runs using the next button before ending\n";
+	pushToLog();
 	dispNum = 0;
 	dispFunc = BasicCSInfoPerRun;
 	updateDisplay(Initial);
@@ -1412,12 +1468,14 @@ void MainWindow::simpleGetCS()
 	
 	if(numBnds!=numRuns)
 	{
-		cout<<"Boundary Information has not been entered for every run"<<endl;
+		logStrm<<"Boundary Information has not been entered for every run";
+		pushToLog();
 		return;
 	}
 	
 	//first we need to find out a file name to save this data to
-	cout<<"\nGive the file name to save this cross-section data to"<<endl;
+	logStrm<<"\nGive the file name to save this cross-section data to";
+	pushToLog();
 	static TString directory(".");
 	TGFileInfo fileInfo;
 	fileInfo.SetMultipleSelection(false);
@@ -1445,10 +1503,12 @@ void MainWindow::simpleGetCS()
 	output.open(temp.c_str());
 	
 	//now output the information line of the csv file
-	output<<"Run number, angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ..."<<endl;
+	output<<"Run number, angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ...";
 	
-	cout<<"\nPlease be aware, the simple version of this function assumes that all of the input"<<endl;
-	cout<<"That you give with regards to phi width etc holds for the entire set of runs\n"<<endl;
+	logStrm<<"\nPlease be aware, the simple version of this function assumes that all of the input";
+	pushToLog();
+	logStrm<<"That you give with regards to phi width etc holds for the entire set of runs\n";
+	pushToLog();
 	
 	int numStates=0;
 	double thetaMin=0.0, thetaMax=0.0, delta=0.0, phiWidth=0.0;
@@ -1468,8 +1528,6 @@ void MainWindow::simpleGetCS()
 		if(spec==NULL)
 		{	return;	}
 		
-		//cout<<numStates<<"  "<<thetaMin<<"  "<<thetaMax<<"  "<<numSegs<<"  "<<delta<<"  "<<phiWidth;
-		
 		spec->Draw("colz");
 		whiteBoard->SetLogy(0);
 		whiteBoard->SetLogz(1);
@@ -1483,7 +1541,8 @@ void MainWindow::simpleGetCS()
 		//get the lines defining the state bounds
 		for(int j=0; j<numStates; ++j)
 		{
-			cout<<"Please draw the line that defines the lower bound in xfp for state "<<(j+1)<<endl;
+			logStrm<<"Please draw the line that defines the lower bound in xfp for state "<<(j+1);
+			pushToLog();
 			TLine* line = (TLine*)gPad->WaitPrimitive("TLine","Line");
 			float x1 = line->GetX1();
 			float x2 = line->GetX2();
@@ -1493,7 +1552,8 @@ void MainWindow::simpleGetCS()
 			b[2*j] = ( ((x2*y1)-(x1*y2)) / (y1-y2) );
 			line->Delete();
 			
-			cout<<"Please draw the line that defines the upper bound in xfp for state "<<(j+1)<<endl;
+			logStrm<<"Please draw the line that defines the upper bound in xfp for state "<<(j+1);
+			pushToLog();
 			TLine* line = (TLine*)gPad->WaitPrimitive("TLine","Line");
 			x1 = line->GetX1();
 			x2 = line->GetX2();
@@ -1547,7 +1607,7 @@ void MainWindow::simpleGetCS()
 				}
 				else
 				{
-					output<<endl;
+					output;
 				}
 			}
 		}
@@ -1557,7 +1617,8 @@ void MainWindow::simpleGetCS()
 	}
 	whiteBoard->Clear();
 	whiteBoard->Update();
-	cout<<"Done Getting Cross-Sections"<<endl;
+	logStrm<<"Done Getting Cross-Sections";
+	pushToLog();
 }
 
 /******************************************
@@ -1593,7 +1654,8 @@ void MainWindow::updatePIDDisp(const UpdateCallType& tp)
 	}
 	else if(tp==Final)
 	{
-		cout<<"Done with display, erasing whiteboard"<<endl;
+		logStrm<<"Done with display, erasing whiteboard";
+		pushToLog();
 		if(hist!=NULL)
 		{
 			delete hist;
@@ -1615,7 +1677,8 @@ void MainWindow::updatePIDDisp(const UpdateCallType& tp)
 	tempCG = testPIDCut( runs[dispNum].runNumber );
 	if(hist==NULL || tempCG == NULL)
 	{
-		cout<<"Backing out of display mode"<<endl;
+		logStrm<<"Backing out of display mode";
+		pushToLog();
 		dispNum = 0;
 		dispFunc = None;
 		updatePIDDisp(Final);//to cleanup static vars
@@ -1697,7 +1760,8 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 	}
 	else if(tp==Final)
 	{
-		cout<<"Done with display, erasing whiteboard"<<endl;
+		logStrm<<"Done with display, erasing whiteboard";
+		pushToLog();
 		if(origHist!=NULL)
 		{
 			delete origHist;
@@ -1739,7 +1803,8 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 	//test to make certain that everything is there
 	if(origHist==NULL || regions==NULL)
 	{
-		cout<<"Backing out of display mode"<<endl;
+		logStrm<<"Backing out of display mode";
+		pushToLog();
 		dispNum = 0;
 		dispFunc = None;
 		updateBGDisp(Final);//to cleanup static vars
@@ -1826,7 +1891,8 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 	}
 	else if(tp==Final)
 	{
-		cout<<"Done with display, erasing whiteboard"<<endl;
+		logStrm<<"Done with display, erasing whiteboard";
+		pushToLog();
 		if(origShape!=NULL)
 		{
 			delete origShape;
@@ -1848,7 +1914,8 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 	
 	if(origShape==NULL || newShape==NULL)
 	{	
-		cout<<"Backing out of display mode"<<endl;
+		logStrm<<"Backing out of display mode";
+		pushToLog();
 		dispNum = 0;
 		dispFunc = None;
 		updateShapeDisp(Final);//to cleanup static vars
@@ -1909,7 +1976,8 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 	}
 	else if(tp==Final)
 	{
-		cout<<"Done with display, erasing whiteboard"<<endl;
+		logStrm<<"Done with display, erasing whiteboard";
+		pushToLog();
 		if(trueSpec!=NULL)
 		{
 			delete trueSpec;
@@ -1946,7 +2014,8 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 	
 	if(	trueSpec == NULL || bgSpec == NULL || scaledBgSpec == NULL || subSpec == NULL )
 	{	
-		cout<<"Backing out of display mode"<<endl;
+		logStrm<<"Backing out of display mode";
+		pushToLog();
 		dispNum = 0;
 		dispFunc = None;
 		updateSubDisp(Final);//to cleanup static vars
@@ -1984,14 +2053,16 @@ void MainWindow::grabBasicCsInfoSimple(const UpdateCallType& tp)
 			basicInfoGrabber->show();
 			break;
 		case Normal:
-			cout<<"Press End Dsiplay to record these parameters"<<endl;
+			logStrm<<"Press End Dsiplay to record these parameters";
+			pushToLog();
 			break;
 		case Final:
 			for( int i=0; i<numRuns; ++i)
 			{
 				basicInfoGrabber->getVals((csBnds+i));
 			}
-			cout<<"These parameters have been recorded for all runs"<<endl;
+			logStrm<<"These parameters have been recorded for all runs";
+			pushToLog();
 			numBnds = numRuns;
 			basicInfoGrabber->hide();
 			break;
@@ -2053,8 +2124,10 @@ void MainWindow::grabBasicCsInfoPerRun(const UpdateCallType& tp)
 	
 	if(	subSpec == NULL )
 	{	
-		cout<<"Spectrum display not possible for this run due to missing spectrum"<<endl;
-		cout<<"You will need to fix this before running the cross-section grabber"<<endl;
+		logStrm<<"Spectrum display not possible for this run due to missing spectrum";
+		pushToLog();
+		logStrm<<"You will need to fix this before running the cross-section grabber";
+		pushToLog();
 	}
 	else
 	{
@@ -2088,12 +2161,16 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 			grabBasicCsInfoPerRun(tp);
 			break;
 		case None:
-			cout<<"In update display with no display function"<<endl;
-			cout<<"This should not be possible"<<endl;
+			logStrm<<"In update display with no display function";
+			pushToLog();
+			logStrm<<"This should not be possible";
+			pushToLog();
 			break;
 		default:
-			cout<<"In update display with an invalid display function"<<endl;
-			cout<<"This should not be possible"<<endl;
+			logStrm<<"In update display with an invalid display function";
+			pushToLog();
+			logStrm<<"This should not be possible";
+			pushToLog();
 			break;
 	}
 }
@@ -2102,13 +2179,15 @@ void MainWindow::prevSeqSpec()
 {
 	if (dispFunc == None)
 	{
-		cout<<"Not in display mode"<<endl;
+		logStrm<<"Not in display mode";
+		pushToLog();
 		return;
 	}
 	
 	if(dispNum == 0)
 	{
-		cout<<"No previous spectrum to display"<<endl;
+		logStrm<<"No previous spectrum to display";
+		pushToLog();
 		return;
 	}
 	else
@@ -2124,13 +2203,15 @@ void MainWindow::nextSeqSpec()
 {
 	if (dispFunc == None)
 	{
-		cout<<"Not in display mode"<<endl;
+		logStrm<<"Not in display mode";
+		pushToLog();
 		return;
 	}
 	
 	if(dispNum == (numRuns -1))
 	{
-		cout<<"No next spectrum to display"<<endl;
+		logStrm<<"No next spectrum to display";
+		pushToLog();
 		return;
 	}
 	else
@@ -2146,7 +2227,8 @@ void MainWindow::endSeqSpec()
 {
 	if (dispFunc == None)
 	{
-		cout<<"Not in display mode"<<endl;
+		logStrm<<"Not in display mode";
+		pushToLog();
 		return;
 	}
 	else
@@ -2167,7 +2249,8 @@ void MainWindow::resetToStart()
 {
 	if ( runs == NULL && mainFile == NULL && auxFile==NULL && frFile==NULL)
 	{
-		cout<<"\nNothing To Reset"<<endl;
+		logStrm<<"\nNothing To Reset";
+		pushToLog();
 		return;
 	}
 	
@@ -2199,13 +2282,15 @@ void MainWindow::resetToStart()
 	}
 	dispNum = 0;
 	dispFunc = None;
-	cout<<"Reset to initial state"<<endl;
+	logStrm<<"Reset to initial state";
+	pushToLog();
 	
 }
 
 void MainWindow::exitApp()
 {
-	cout<<"\nGoodbye!\n"<<endl;
+	logStrm<<"\nGoodbye!\n";
+	pushToLog();
 	gApplication->Terminate(0);
 }
 
@@ -2216,6 +2301,31 @@ void MainWindow::exitApp()
 ** Private helper functions
 *******************************************
 ******************************************/
+
+void MainWindow::pushToLog()
+{
+	//ind = tempLine.find(',');
+	//temp = tempLine.substr(0,ind);
+	//tempLine = tempLine.substr(ind+1);
+	
+	//first get the string from the string stream
+	string temp = logStrm.str();
+	//reset the string stream;
+	logStrm.str("");
+	//set up a loop to parse the string searching for \n characters
+	int nlInd = temp.find('\n');
+	while(nlInd != string::npos)
+	{
+		string firstPart = temp.substr(0,nlInd);
+		temp = temp.substr(nlInd+1);
+		messageLog->AddLine(firstPart.c_str());
+		nlInd = temp.find('\n');
+	}
+	messageLog->AddLine(temp.c_str());
+	messageLog->ShowBottom();
+	//messageLog->Update();
+}
+
 string MainWindow::makeTreeName(int runN)
 {
 	ostringstream treeNamer;
@@ -2235,7 +2345,8 @@ TTree* MainWindow::testTree(int runN)
 	TTree* temp = retrieveTree(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a raw data tree, you might have the wrong combined file loaded"<<endl;
+		logStrm<<"Missing a raw data tree, you might have the wrong combined file loaded";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2264,8 +2375,10 @@ TCutG* MainWindow::testPIDCut(int runN)
 	TCutG* temp = retrievePIDCut(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a PID cut, you might have the wrong aux file loaded"<<endl;
-		cout<<"or you might have forgotten to run Get PID Cut(s)"<<endl;
+		logStrm<<"Missing a PID cut, you might have the wrong aux file loaded";
+		pushToLog();
+		logStrm<<"or you might have forgotten to run Get PID Cut(s)";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2294,8 +2407,10 @@ TH2F* MainWindow::testPIDSpec(int runN)
 	TH2F* temp = retrievePIDSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a PID spectrum, you might have the wrong aux file loaded"<<endl;
-		cout<<"or you might have forgotten to run Get PID Cut(s)"<<endl;
+		logStrm<<"Missing a PID spectrum, you might have the wrong aux file loaded";
+		pushToLog();
+		logStrm<<"or you might have forgotten to run Get PID Cut(s)";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2323,8 +2438,10 @@ TCut* MainWindow::testBaseCut(int runN)
 	TCut* temp = retrieveBaseCut(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a base cut, you might have the wrong aux file loaded"<<endl;
-		cout<<"or you might have forgotten to run Get PID Cut(s)"<<endl;
+		logStrm<<"Missing a base cut, you might have the wrong aux file loaded";
+		pushToLog();
+		logStrm<<"or you might have forgotten to run Get PID Cut(s)";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2352,8 +2469,10 @@ TGraph* MainWindow::testBGGraph(int runN)
 	TGraph* temp = retrieveBGGraph(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a Yfp positions definition, you might have the wrong aux file loaded"<<endl;
-		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		logStrm<<"Missing a Yfp positions definition, you might have the wrong aux file loaded";
+		pushToLog();
+		logStrm<<"or you might have forgotten to run Get BG Cut(s)";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2381,8 +2500,10 @@ TCut* MainWindow::testBGCut(int runN)
 	TCut* temp = retrieveBGCut(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a BG Region Cut, you might have the wrong aux file loaded"<<endl;
-		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		logStrm<<"Missing a BG Region Cut, you might have the wrong aux file loaded";
+		pushToLog();
+		logStrm<<"or you might have forgotten to run Get BG Cut(s)";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2410,8 +2531,10 @@ TCut* MainWindow::testTRCut(int runN)
 	TCut* temp = retrieveTRCut(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a True+BG Region Cut, you might have the wrong aux file loaded"<<endl;
-		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		logStrm<<"Missing a True+BG Region Cut, you might have the wrong aux file loaded";
+		pushToLog();
+		logStrm<<"or you might have forgotten to run Get BG Cut(s)";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2439,8 +2562,10 @@ TH1F* MainWindow::testBGSpec(int runN)
 	TH1F* temp = retrieveBGSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a background spectrum, you might have the wrong aux file loaded"<<endl;
-		cout<<"or you might have forgotten to run Get BG Cut(s)"<<endl;
+		logStrm<<"Missing a background spectrum, you might have the wrong aux file loaded";
+		pushToLog();
+		logStrm<<"or you might have forgotten to run Get BG Cut(s)";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2468,7 +2593,8 @@ TH2F* MainWindow::testOrigShapeSpec(int runN)
 	TH2F* temp = retrieveOrigShapeSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing an original shape spectrum, you might have the wrong aux file loaded"<<endl;
+		logStrm<<"Missing an original shape spectrum, you might have the wrong aux file loaded";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2496,7 +2622,8 @@ TH2F* MainWindow::testFirstOrderShapeSpec(int runN)
 	TH2F* temp = retrieveFirstOrderShapeSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a first order shape spectrum, you might have the wrong aux file loaded"<<endl;
+		logStrm<<"Missing a first order shape spectrum, you might have the wrong aux file loaded";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2524,7 +2651,8 @@ TTree* MainWindow::testFirstOrderShapeTree(int runN)
 	TTree* temp = retrieveFirstOrderShapeTree(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a first order shape tree, you might have the wrong friend file loaded"<<endl;
+		logStrm<<"Missing a first order shape tree, you might have the wrong friend file loaded";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2552,7 +2680,8 @@ TH2F* MainWindow::testTRpBGSpec(int runN)
 	TH2F* temp = retrieveTRpBGSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a True+BG Theta vs Xfp spectrum, you might have the wrong aux file loaded"<<endl;
+		logStrm<<"Missing a True+BG Theta vs Xfp spectrum, you might have the wrong aux file loaded";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2580,7 +2709,8 @@ TH2F* MainWindow::testBGOnlySpec(int runN)
 	TH2F* temp = retrieveBGOnlySpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a BG Theta vs Xfp spectrum, you might have the wrong aux file loaded"<<endl;
+		logStrm<<"Missing a BG Theta vs Xfp spectrum, you might have the wrong aux file loaded";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2608,7 +2738,8 @@ TH2F* MainWindow::testScaledBGSpec(int runN)
 	TH2F* temp = retrieveScaledBGSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a BG Theta vs Xfp spectrum, you might have the wrong aux file loaded"<<endl;
+		logStrm<<"Missing a BG Theta vs Xfp spectrum, you might have the wrong aux file loaded";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2636,7 +2767,8 @@ TH2F* MainWindow::testSubSpec(int runN)
 	TH2F* temp = retrieveSubSpec(runN);
 	if( temp==NULL )
 	{
-		cout<<"Missing a Subtracted Theta vs Xfp spectrum, you might have the wrong aux file loaded"<<endl;
+		logStrm<<"Missing a Subtracted Theta vs Xfp spectrum, you might have the wrong aux file loaded";
+		pushToLog();
 		return NULL;
 	}
 	else
@@ -2679,12 +2811,14 @@ bool MainWindow::checkUpToRunData()
 {
 	if ( runs == NULL )
 	{
-		cout<<"\nLoad Run Data first"<<endl;
+		logStrm<<"\nLoad Run Data first";
+		pushToLog();
 		return false;
 	}
 	else if (dispFunc != None)
 	{
-		cout<<"\nEnd display mode first"<<endl;
+		logStrm<<"\nEnd display mode first";
+		pushToLog();
 		return false;
 	}
 	return true;
@@ -2698,7 +2832,8 @@ bool MainWindow::checkUpToMainFile()
 	}
 	else if ( mainFile == NULL )
 	{
-		cout<<"\nLoad/create combined file first"<<endl;
+		logStrm<<"\nLoad/create combined file first";
+		pushToLog();
 		return false;
 	}
 	return true;
@@ -2712,7 +2847,8 @@ bool MainWindow::checkUpToAuxFile()
 	}
 	else if ( auxFile == NULL )
 	{
-		cout<<"\nLoad/create auxiliary file first"<<endl;
+		logStrm<<"\nLoad/create auxiliary file first";
+		pushToLog();
 		return false;
 	}
 	return true;
@@ -2726,7 +2862,8 @@ bool MainWindow::checkUpToFrFile()
 	}
 	else if( frFile == NULL )
 	{
-		cout<<"\nLoad/create a friend file first"<<endl;
+		logStrm<<"\nLoad/create a friend file first";
+		pushToLog();
 		return false;
 	}
 	return true;
@@ -2741,7 +2878,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	string tempLine = line.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.runNumber;
-	//cout<<tempData.runNumber<<" ";
 	conv.clear();
 	//read the angle
 	ind = tempLine.find(',');
@@ -2749,7 +2885,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.angle;
-	//cout<<tempData.angle<<" ";
 	conv.clear();
 	//read the beam energy 
 	ind = tempLine.find(',');
@@ -2757,7 +2892,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.beamEn;
-	//cout<<tempData.beamEn<<" ";
 	conv.clear();
 	//read the Charge State
 	ind = tempLine.find(',');
@@ -2765,7 +2899,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.chargeState;
-	//cout<<tempData.chargeState<<" ";
 	conv.clear();
 	//read the projectile mass
 	ind = tempLine.find(',');
@@ -2773,7 +2906,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.projMass;
-	//cout<<tempData.projMass<<" ";
 	conv.clear();
 	//read the target mass
 	ind = tempLine.find(',');
@@ -2781,7 +2913,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.targetMass;
-	//cout<<tempData.targetMass<<" ";
 	conv.clear();
 	//read the target thickness
 	ind = tempLine.find(',');
@@ -2789,7 +2920,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.thickness;
-	//cout<<tempData.thickness<<" ";
 	conv.clear();
 	//read the beam integral
 	ind = tempLine.find(',');
@@ -2797,7 +2927,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.beamInt;
-	//cout<<tempData.beamInt<<" ";
 	conv.clear();
 	//read the BI range
 	ind = tempLine.find(',');
@@ -2805,7 +2934,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.biRange;
-	//cout<<tempData.biRange<<" ";
 	conv.clear();
 	//read the GR request
 	ind = tempLine.find(',');
@@ -2813,7 +2941,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.grRequest;
-	//cout<<tempData.grRequest<<" ";
 	conv.clear();
 	//read the GR accept
 	ind = tempLine.find(',');
@@ -2821,7 +2948,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.grAccept;
-	//cout<<tempData.grAccept<<" ";
 	conv.clear();
 	//read the vdc effeciency
 	ind = tempLine.find(',');
@@ -2829,7 +2955,6 @@ void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
 	conv>>tempData.vdcEff;
-	//cout<<tempData.vdcEff<<endl;
 	conv.clear();
 }
 
