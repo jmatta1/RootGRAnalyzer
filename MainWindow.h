@@ -57,7 +57,7 @@ class MainWindow
 	RQ_OBJECT("MainWindow")
 public:
 	MainWindow(const TGWindow* parent, UInt_t width, UInt_t height);
-	~MainWindow();
+	virtual ~MainWindow();
 	
 	//file operations
 	void readRunData();
@@ -96,6 +96,8 @@ public:
 	void makeFriendFileActive(){frFile->cd();}
 	void resetToStart();
 	void exitApp();
+	
+	void doClose();
 	
 private:
 	//some private helper functions
@@ -194,12 +196,10 @@ private:
 	TRootEmbeddedCanvas *canvas;//holds the canvas we use for drawing
 	TCanvas *whiteBoard;//holds the pointer to the actual TCanvas in canvas
 	//Frames for organization
-	//TGHorizontalFrame* organizerFrame;//the outermost organizer of the window
-	TGVerticalFrame* canvasFrame;//holds the canvas and bottom bar
+	TGVerticalFrame* organizerFrame;//the outermost organizer of the window
+	TGHorizontalFrame* canvasFrame;//holds the canvas and bottom bar
 	TGVerticalFrame* bottomFrame;//holds the canvas and bottom bar
-	TGVerticalFrame* sideBarFrame;//holds the sidebar and seq display bar
-	TGVerticalFrame* actionsFrame;//holds the actions of the sidebar
-	TGVerticalFrame* seqDispFrame;//holds the seq display system
+	TGVerticalFrame* sideBarFrame;//holds the sidebar
 	TGHorizontalFrame* fileOpsRowFrame;//holds the row of buttons at the bottom for file operations
 	TGHorizontalFrame* bottomBarFrame;//holds the subframes for file control and overall control
 	TGHorizontalFrame* fileActFrame;//holds the buttons for activating files
@@ -229,7 +229,6 @@ private:
 	TGTextButton *getCSParamsAllRunsBut;
 	TGTextButton *getCSParamsPerRunBut;
 	TGTextButton *scsBut;
-	
 	//sequential display buttons
 	TGTextButton *prevSpec;
 	TGTextButton *nextSpec;
@@ -276,126 +275,118 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//create the main window for the gui
 	mainWindow = new TGMainFrame(parent,width,height);
 	
-	//create the embedded canvas
-	canvas = new TRootEmbeddedCanvas("canvas",mainWindow, 200, 200);
-	whiteBoard = canvas->GetCanvas();
-	whiteBoard->SetTitle("Whiteboard For Analysis");
-	gStyle->SetOptStat(0);
-	cout<<"Made Canvas"<<endl;
-	//add the canvas to its frame
-	mainWindow->AddFrame(canvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
+	//set up some stuff to prevent the X11 BadDrawable error
+	mainWindow->SetCleanup(kDeepCleanup);
+	mainWindow->Connect("CloseWindow()","MainWindow",this,"DoClose()");
+	mainWindow->DontCallClose();
 	
 	//create the frames for organizing everything
-	//organizerFrame = new TGHorizontalFrame(mainWindow,width,height);
-	sideBarFrame = new TGVerticalFrame(mainWindow,width,height);
-	actionsFrame = new TGVerticalFrame(sideBarFrame,width,height);
-	seqDispFrame = new TGVerticalFrame(sideBarFrame,width,height);
-	//canvasFrame = new TGVerticalFrame(organizerFrame,width,height);
-	bottomFrame = new TGVerticalFrame(mainWindow,width,height);
+	organizerFrame = new TGVerticalFrame(mainWindow,width,height);
+	canvasFrame = new TGHorizontalFrame(organizerFrame,width,height);
+	sideBarFrame = new TGVerticalFrame(canvasFrame,width,height);
+	bottomFrame = new TGVerticalFrame(organizerFrame,width,height);
 	fileOpsRowFrame = new TGHorizontalFrame(bottomFrame,width,height);
 	bottomBarFrame = new TGHorizontalFrame(bottomFrame,width,height);
 	fileActFrame = new TGHorizontalFrame(bottomBarFrame,width,height);
 	overallControlFrame = new TGHorizontalFrame(bottomBarFrame,width,height);
 	
-	cout<<"allocated frames"<<endl;
-	
-	//create and connect the buttons in the action bar
+	//create and connect the buttons in the side bar
 	/******************************************
 	** Cut operations buttons
 	******************************************/
-	cutLabel = new TGLabel(actionsFrame, "Cuts");
+	cutLabel = new TGLabel(sideBarFrame, "Cuts");
 	//Get PIDs button
-	getPIDs = new TGTextButton(actionsFrame,"Get PID Cuts");
+	getPIDs = new TGTextButton(sideBarFrame,"Get PID Cuts");
 	getPIDs->Connect("Clicked()","MainWindow",this,"getPIDCuts()");	
 	//display PIDs button
-	dispPID = new TGTextButton(actionsFrame,"Show PID Cuts");
+	dispPID = new TGTextButton(sideBarFrame,"Show PID Cuts");
 	dispPID->Connect("Clicked()","MainWindow",this,"showPIDCut()");
 	//Get BG Cuts Button
-	getBG = new TGTextButton(actionsFrame,"Get BG Cuts");
+	getBG = new TGTextButton(sideBarFrame,"Get BG Cuts");
 	getBG->Connect("Clicked()","MainWindow",this,"getBGCuts()");
 	//Display BG Cuts Button
-	dispBG = new TGTextButton(actionsFrame,"Show BG Cuts");
+	dispBG = new TGTextButton(sideBarFrame,"Show BG Cuts");
 	dispBG->Connect("Clicked()","MainWindow",this,"showBGCut()");
 	/******************************************
 	** Shape operations buttons
 	******************************************/
-	shapeLabel = new TGLabel(actionsFrame, "Shapes");
+	shapeLabel = new TGLabel(sideBarFrame, "Shapes");
 	//Get shapes button
-	getShapesBut = new TGTextButton(actionsFrame,"Get Shapes");
+	getShapesBut = new TGTextButton(sideBarFrame,"Get Shapes");
 	getShapesBut->Connect("Clicked()","MainWindow",this,"getFirstOrdShapes()");
 	//make bg sub spectra button
-	makeBGSubBut = new TGTextButton(actionsFrame,"Make Frnd Tree Specs");
+	makeBGSubBut = new TGTextButton(sideBarFrame,"Make Frnd Tree Specs");
 	makeBGSubBut->Connect("Clicked()","MainWindow",this,"makeBGSubSpecs()");
 	//display shapes button
-	showShapesBut = new TGTextButton(actionsFrame,"Show Shapes");
+	showShapesBut = new TGTextButton(sideBarFrame,"Show Shapes");
 	showShapesBut->Connect("Clicked()","MainWindow",this,"showFirstOrdShapes()");
 	//display bgsub shapes button
-	showbgSubBut = new TGTextButton(actionsFrame,"Show BG-sub Shapes");
+	showbgSubBut = new TGTextButton(sideBarFrame,"Show BG-sub Shapes");
 	showbgSubBut->Connect("Clicked()","MainWindow",this,"showSubbedShapes()");
 	/******************************************
 	** Get Cross-Sections buttons
 	******************************************/
-	csLabel = new TGLabel(actionsFrame, "CS Extraction");
+	csLabel = new TGLabel(sideBarFrame, "CS Extraction");
 	//Simple get cross-sections button
-	getCSParamsAllRunsBut = new TGTextButton(actionsFrame,"Get Params All Runs");
+	getCSParamsAllRunsBut = new TGTextButton(sideBarFrame,"Get Params All Runs");
 	getCSParamsAllRunsBut->Connect("Clicked()","MainWindow",this,"getBasicCSParamsSimple()");
 	//Simple get cross-sections button
-	getCSParamsPerRunBut = new TGTextButton(actionsFrame,"Get Params Per Run");
+	getCSParamsPerRunBut = new TGTextButton(sideBarFrame,"Get Params Per Run");
 	getCSParamsPerRunBut->Connect("Clicked()","MainWindow",this,"getBasicCSParamsPerRun()");
 	//Simple get cross-sections button
-	scsBut = new TGTextButton(actionsFrame,"Simple CS Extraction");
+	scsBut = new TGTextButton(sideBarFrame,"Simple CS Extraction");
 	scsBut->Connect("Clicked()","MainWindow",this,"simpleGetCS()");
 	
-	//add the sidebar buttons to the action frame
-	actionsFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(getPIDs, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(dispPID, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(getBG, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(dispBG, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(shapeLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(getShapesBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(makeBGSubBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(showbgSubBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(getCSParamsAllRunsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(getCSParamsPerRunBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	actionsFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	
-	cout<<"added action buttons"<<endl;
-	
-	//add the action frame to the sidebar frame
-	sideBarFrame->AddFrame(actionsFrame,  new TGLayoutHints(kLHintsTop | kLHintsCenterX, 2,2,2,2) );
+	//add the sidebar buttons to the sidebar frame
+	sideBarFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(getPIDs, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(dispPID, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(getBG, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(dispBG, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(shapeLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(getShapesBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(makeBGSubBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(showbgSubBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(getCSParamsAllRunsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(getCSParamsPerRunBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	/******************************************
 	** Sequential Display buttons
 	******************************************/
-	sDLabel = new TGLabel(seqDispFrame, "Sequential Display Buttons");
-	seqDispFrame->AddFrame(sDLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sDLabel = new TGLabel(sideBarFrame, "Sequential Display Buttons");
+	sideBarFrame->AddFrame(sDLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	//create and connect the sequential display buttons
 	//show previous spectrum
-	prevSpec = new TGTextButton(seqDispFrame,"Prev Spec");
+	prevSpec = new TGTextButton(sideBarFrame,"Prev Spec");
 	prevSpec->Connect("Clicked()","MainWindow",this,"prevSeqSpec()");
 	//show next spectrum
-	nextSpec = new TGTextButton(seqDispFrame,"Next Spec");
+	nextSpec = new TGTextButton(sideBarFrame,"Next Spec");
 	nextSpec->Connect("Clicked()","MainWindow",this,"nextSeqSpec()");
 	//end display
-	endSpec = new TGTextButton(seqDispFrame,"End Display");
+	endSpec = new TGTextButton(sideBarFrame,"End Display");
 	endSpec->Connect("Clicked()","MainWindow",this,"endSeqSpec()");
 	
 	//add the sequential display buttons to their frame
-	seqDispFrame->AddFrame(prevSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	seqDispFrame->AddFrame(nextSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	seqDispFrame->AddFrame(endSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(prevSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(nextSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(endSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
-	cout<<"added sequence buttons buttons"<<endl;
-	//add the sequential display buttons to the bottom of the sidebar
-	sideBarFrame->AddFrame(seqDispFrame,  new TGLayoutHints(kLHintsBottom | kLHintsCenterX, 2,2,2,2) );
+	//add the sidebar to the canvas frame
+	canvasFrame->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY, 2,2,2,2) );
 	
-	//add the sidebar to the main organizer
-	mainWindow->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsRight, 2,2,2,2) );
-	
-	cout<<"Preparing to create canvas"<<endl;
+	/******************************************
+	** Canvas Creation
+	******************************************/
+	//create the embedded canvas
+	canvas = new TRootEmbeddedCanvas("canvas",canvasFrame, 200, 200);
+	whiteBoard = canvas->GetCanvas();
+	whiteBoard->SetTitle("Whiteboard For Analysis");
+	gStyle->SetOptStat(0);
+	//add the canvas to its frame
+	canvasFrame->AddFrame(canvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY , 2,2,2,2) );
 	
 	/******************************************
 	** File operations
@@ -436,7 +427,6 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	fileOpsRowFrame->AddFrame(createFrFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	fileOpsRowFrame->AddFrame(opFrFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	
-	cout<<"added file ops buttons"<<endl;
 	//add the file operations frame to its frame
 	bottomFrame->AddFrame(fileOpsRowFrame, new TGLayoutHints(kLHintsExpandX | kLHintsTop, 2,2,2,2) );
 	
@@ -461,9 +451,8 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	fileActFrame->AddFrame(auxFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	fileActFrame->AddFrame(frFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	
-	cout<<"added file ctrl buttons"<<endl;
 	//add the file activation frame to its frame
-	bottomBarFrame->AddFrame(fileActFrame, new TGLayoutHints(kLHintsLeft, 2,2,2,2) );
+	bottomBarFrame->AddFrame(fileActFrame, new TGLayoutHints(kLHintsExpandX | kLHintsLeft, 2,2,2,2) );
 	
 	/******************************************
 	** Overall Control buttons
@@ -482,43 +471,33 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//add the overall control buttons to their frame
 	overallControlFrame->AddFrame(resBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	overallControlFrame->AddFrame(exBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
-	cout<<"added ctrl buttons"<<endl;
 	//add the overall control frame to its frame
 	bottomBarFrame->AddFrame(overallControlFrame, new TGLayoutHints(kLHintsExpandX, 2,2,2,2) );
 	
 	//add the bottomBarFrame to its frame
 	bottomFrame->AddFrame(bottomBarFrame, new TGLayoutHints(kLHintsExpandX | kLHintsBottom, 2,2,2,2) );
 	
-	//add the bottom frame to its frame
-	mainWindow->AddFrame(bottomFrame, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
-	
+	//add the bottom frame to its frame 
+	organizerFrame->AddFrame(bottomFrame, new TGLayoutHints(kLHintsExpandX | kLHintsBottom, 2,2,2,2) );
 	//add the canvasFrame to the overall frame
-	//organizerFrame->AddFrame(canvasFrame,  new TGLayoutHints(kLHintsLeft, 2,2,2,2) );
+	organizerFrame->AddFrame(canvasFrame,  new TGLayoutHints(kLHintsRight | kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
 	
 	//add the overall frame to the mainwindow
-	//mainWindow->AddFrame(canvasFrame,  new TGLayoutHints(kLHintsNoHints, 2,2,2,2) );
+	mainWindow->AddFrame(organizerFrame,  new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
 	
 	//set the name of the main frame
 	mainWindow->SetWindowName("Analysis GUI");
-	cout<<"Starting to map subwindows"<<endl;
 	//go through the steps to draw this beast
 	//map the subwindows
 	mainWindow->MapSubwindows();
 	//init the layout engine
 	mainWindow->Resize(mainWindow->GetDefaultSize());
-	cout<<"Mapping window"<<endl;
 	//map the main frame
 	mainWindow->MapWindow();
 }
 
 MainWindow::~MainWindow()
 {
-	mainWindow->Cleanup();
-	delete basicInfoGrabber;
-	delete mainWindow;
-	//delete sys;
-	//sys=NULL;
-	
 	if(runs != NULL)
 	{
 		delete[] runs;
@@ -544,6 +523,16 @@ MainWindow::~MainWindow()
 		delete frFile;
 		frFile = NULL;
 	}
+	
+	delete basicInfoGrabber;
+	//mainWindow->Cleanup();
+	mainWindow->CloseWindow();
+	//delete mainWindow;
+}
+
+void MainWindow::DoClose()
+{
+	delete this;
 }
 
 /******************************************
@@ -568,7 +557,7 @@ void MainWindow::readRunData()
 	//make the open file dialog
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), menu, kFDOpen, &fileInfo);
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDOpen, &fileInfo);
 	//cout<<fileInfo.fFilename<<", "<<fileInfo.fIniDir<<endl;
 	directory = fileInfo.fIniDir;
 	
@@ -636,7 +625,7 @@ void MainWindow::buildBigFile()
 	//make the open file dialog
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), menu, kFDSave, &fileInfo);
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
 	if(TString(fileInfo.fFilename).IsNull())
 	{
 		return;
@@ -727,7 +716,7 @@ void MainWindow::openBigFile()
 	//make the open file dialog
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), menu, kFDOpen, &fileInfo);
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDOpen, &fileInfo);
 	if(TString(fileInfo.fFilename).IsNull())
 	{
 		return;
@@ -764,7 +753,7 @@ void MainWindow::makeAuxFile()
 	//make the open file dialog
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), menu, kFDSave, &fileInfo);
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
 	if(TString(fileInfo.fFilename).IsNull())
 	{
 		return;
@@ -801,7 +790,7 @@ void MainWindow::openAuxFile()
 	//make the open file dialog
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), menu, kFDOpen, &fileInfo);
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDOpen, &fileInfo);
 	if(TString(fileInfo.fFilename).IsNull())
 	{
 		return;
@@ -839,7 +828,7 @@ void MainWindow::makeFriendFile()
 	//make the open file dialog
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), menu, kFDSave, &fileInfo);
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
 	if(TString(fileInfo.fFilename).IsNull())
 	{
 		return;
@@ -876,7 +865,7 @@ void MainWindow::openFriendFile()
 	//make the open file dialog
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), menu, kFDOpen, &fileInfo);
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDOpen, &fileInfo);
 	if(TString(fileInfo.fFilename).IsNull())
 	{
 		return;
@@ -1438,7 +1427,7 @@ void MainWindow::simpleGetCS()
 	//make the open file dialog
 	//quite frankly this creeps me the hell out, just creating an object like this
 	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), menu, kFDSave, &fileInfo);
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
 	if(TString(fileInfo.fFilename).IsNull())
 	{
 		return;
@@ -1456,7 +1445,7 @@ void MainWindow::simpleGetCS()
 	output.open(temp.c_str());
 	
 	//now output the information line of the csv file
-	output<<"Run number, angle, state 1 cs, state 1 cs err, state 2 cs, state 2 cs err, ..."<<endl;
+	output<<"Run number, angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ..."<<endl;
 	
 	cout<<"\nPlease be aware, the simple version of this function assumes that all of the input"<<endl;
 	cout<<"That you give with regards to phi width etc holds for the entire set of runs\n"<<endl;
@@ -1549,7 +1538,9 @@ void MainWindow::simpleGetCS()
 				intBounds->SetVarY("Thcorr");
 				double counts = intBounds->IntegralHist(spec);
 				double cntsErr = TMath::Sqrt(counts);
-				output<< calcCrossSection(counts, runs[i], delta, phiWidth) <<", "<< calcCrossSection(cntsErr, runs[i], delta, phiWidth);
+				double cs = calcCrossSection(counts, runs[i], delta, phiWidth);
+				double csErr = calcCrossSection(cntsErr, runs[i], delta, phiWidth);
+				output<< counts <<", "<< cs <<", "<< csErr;
 				if(k != (numStates - 1))
 				{
 					output<<", ";
@@ -2000,7 +1991,7 @@ void MainWindow::grabBasicCsInfoSimple(const UpdateCallType& tp)
 			{
 				basicInfoGrabber->getVals((csBnds+i));
 			}
-			cout<<"These parameters are recorded for all runs"<<endl;
+			cout<<"These parameters have been recorded for all runs"<<endl;
 			numBnds = numRuns;
 			basicInfoGrabber->hide();
 			break;

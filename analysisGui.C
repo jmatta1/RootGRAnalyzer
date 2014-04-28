@@ -5,7 +5,7 @@ void makeGUI()
 {
 	if(GUI==NULL)
 	{
-		GUI = new MainWindow(gClient->GetRoot(),0,0);
+		GUI = new MainWindow(gClient->GetRoot(),500,400);
 	}
 	else
 	{
