@@ -94,6 +94,7 @@ public:
 	void makeTreeFileActive(){mainFile->cd();}
 	void makeAuxFileActive(){auxFile->cd();}
 	void makeFriendFileActive(){frFile->cd();}
+	void clearLog();
 	void resetToStart();
 	void exitApp();
 	
@@ -207,9 +208,13 @@ private:
 	TGHorizontalFrame* bottomBarFrame;//holds the subframes for file control and overall control
 	TGHorizontalFrame* fileActFrame;//holds the buttons for activating files
 	TGHorizontalFrame* overallControlFrame;//holds the overall control buttons
+	TGVerticalFrame* messageLogFrame;//frame that only holds the message log, necessary for the resizing trick
 	
 	//the message container for the window to try and make things so we do not need the terminal at all.
 	TGTextView* messageLog;
+	
+	//the splitters allowing resizing of the canvas and message box
+	TGHSplitter* split;
 	
 	//labels to store text
 	TGLabel* fileLabel;
@@ -255,6 +260,7 @@ private:
 	TGTextButton *frFocusBut;
 	
 	//overall control buttons
+	TGTextButton *clLogBut;
 	TGTextButton *resBut;
 	TGTextButton *exBut;
 };
@@ -295,6 +301,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	bottomBarFrame = new TGHorizontalFrame(bottomFrame,width,height);
 	fileActFrame = new TGHorizontalFrame(bottomBarFrame,width,height);
 	overallControlFrame = new TGHorizontalFrame(bottomBarFrame,width,height);
+	messageLogFrame  = new TGVerticalFrame(organizerFrame,width,height, kChildFrame | kFixedHeight);
 	
 	//create and connect the buttons in the side bar
 	/******************************************
@@ -399,33 +406,33 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	******************************************/
 	//create the file ops label and add it
 	fileLabel = new TGLabel(fileOpsRowFrame, "File Ops: ");
-	fileOpsRowFrame->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX, 2,2,2,2));
+	fileOpsRowFrame->AddFrame(fileLabel, new TGLayoutHints(kLHintsNoHints, 2,2,2,2));
 	//create and connect the file operations buttons
 	//read run data button
 	rdRunData = new TGTextButton(fileOpsRowFrame,"Read Run Data");
 	rdRunData->Connect("Clicked()","MainWindow",this,"readRunData()");
-	//build combined root file
-	buildFile = new TGTextButton(fileOpsRowFrame,"Build Combined File");
+	//build merge root file
+	buildFile = new TGTextButton(fileOpsRowFrame,"Make Merge File");
 	buildFile->Connect("Clicked()","MainWindow",this,"buildBigFile()");
-	//open combined root file
-	opBigFile = new TGTextButton(fileOpsRowFrame,"Open Combined File");
+	//open merge root file
+	opBigFile = new TGTextButton(fileOpsRowFrame,"Open Merge File");
 	opBigFile->Connect("Clicked()","MainWindow",this,"openBigFile()");
 	//CreateAuxFile button
-	createAuxFile = new TGTextButton(fileOpsRowFrame,"Make Auxilliary File");
+	createAuxFile = new TGTextButton(fileOpsRowFrame,"Make Aux File");
 	createAuxFile->Connect("Clicked()","MainWindow",this,"makeAuxFile()");
 	//Open Aux File button
-	opAuxFile = new TGTextButton(fileOpsRowFrame,"Open Auxilliary File");
+	opAuxFile = new TGTextButton(fileOpsRowFrame,"Open Aux File");
 	opAuxFile->Connect("Clicked()","MainWindow",this,"openAuxFile()");
 	//Create friend file button
-	createFrFile = new TGTextButton(fileOpsRowFrame,"Make Friend Tree File");
+	createFrFile = new TGTextButton(fileOpsRowFrame,"Make Friend File");
 	createFrFile->Connect("Clicked()","MainWindow",this,"makeFriendFile()");
 	//Open friend file button
-	opFrFile = new TGTextButton(fileOpsRowFrame,"Open Friend Tree File");
+	opFrFile = new TGTextButton(fileOpsRowFrame,"Open Friend File");
 	opFrFile->Connect("Clicked()","MainWindow",this,"openFriendFile()");
 	
 	
 	//add file operations buttons to their frame
-	fileOpsRowFrame->AddFrame(rdRunData, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
+	fileOpsRowFrame->AddFrame(rdRunData, new TGLayoutHints(kLHintsExpandX ,3,3,2,2));
 	fileOpsRowFrame->AddFrame(buildFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	fileOpsRowFrame->AddFrame(opBigFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	fileOpsRowFrame->AddFrame(createAuxFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
@@ -466,6 +473,9 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	controlLabel = new TGLabel(overallControlFrame, "Overall Control: ");
 	overallControlFrame->AddFrame(controlLabel, new TGLayoutHints(kLHintsLeft,2,2,2,2));
 	//create and connect the overall control buttons
+	//clear log button
+	clLogBut = new TGTextButton(overallControlFrame,"Clear Log");
+	clLogBut->Connect("Clicked()","MainWindow",this,"clearLog()");
 	//reset button
 	resBut = new TGTextButton(overallControlFrame,"Reset");
 	resBut->Connect("Clicked()","MainWindow",this,"resetToStart()");
@@ -475,6 +485,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	
 	
 	//add the overall control buttons to their frame
+	overallControlFrame->AddFrame(clLogBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	overallControlFrame->AddFrame(resBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	overallControlFrame->AddFrame(exBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	//add the overall control frame to its frame
@@ -493,9 +504,15 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	** Message Log
 	******************************************/
 	//create the message log
-	messageLog = new TGTextView(organizerFrame,1,100,"Welcome to the Notre Dame Giant Resonance Analysis GUI");
+	messageLog = new TGTextView(messageLogFrame,1,100,initMessage);
+	//the splitter between the menu bar and the message log
+	split = new TGHSplitter(organizerFrame);
+	split->SetFrame(messageLogFrame,false);
+	organizerFrame->AddFrame(split,  new TGLayoutHints( kLHintsExpandX  , 2,2,2,2) );
 	//add the message log to the organizer frame
-	organizerFrame->AddFrame(messageLog,  new TGLayoutHints( kLHintsExpandX | kLHintsCenterX, 2,2,2,2) );
+	messageLogFrame->AddFrame(messageLog,  new TGLayoutHints( kLHintsExpandX | kLHintsExpandY, 2,2,2,2) );
+	messageLogFrame->SetHeight(104);
+	organizerFrame->AddFrame(messageLogFrame,  new TGLayoutHints( kLHintsExpandX | kLHintsCenterX, 2,2,2,2) );
 	
 	//add the overall frame to the mainwindow
 	mainWindow->AddFrame(organizerFrame,  new TGLayoutHints(kLHintsExpandX | kLHintsExpandY | kLHintsBottom, 2,2,2,2) );
@@ -507,6 +524,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	mainWindow->MapSubwindows();
 	//init the layout engine
 	mainWindow->Resize(mainWindow->GetDefaultSize());
+	mainWindow->Resize(850,650);
 	//map the main frame
 	mainWindow->MapWindow();
 }
@@ -623,7 +641,7 @@ void MainWindow::buildBigFile()
 	{	return; }
 	else if (mainFile != NULL)
 	{
-		logStrm<<"\nA combined file is already loaded, use reset to create another";
+		logStrm<<"\nA merge file is already loaded, use reset to create another";
 		pushToLog();
 		return;
 	}
@@ -713,7 +731,7 @@ void MainWindow::buildBigFile()
 	mainFile->Close();
 	delete mainFile;
 	mainFile = new TFile(temp.c_str(),"READ");
-	logStrm<<"Combined file opened in read only mode";
+	logStrm<<"Merge file opened in read only mode";
 	pushToLog();
 }
 
@@ -723,7 +741,7 @@ void MainWindow::openBigFile()
 	{	return; }
 	if (mainFile != NULL)
 	{
-		logStrm<<"\nCombined file already loaded, to load a different one, use the reset button";
+		logStrm<<"\nMerge file already loaded, to load a different one, use the reset button";
 		pushToLog();
 		return;
 	}
@@ -753,7 +771,7 @@ void MainWindow::openBigFile()
 	
 	//open the big file
 	mainFile = new TFile(temp.c_str(),"READ");
-	logStrm<<"\nCombined file opened in read only mode";
+	logStrm<<"\nMerge file opened in read only mode";
 	pushToLog();
 }
 
@@ -2280,6 +2298,9 @@ void MainWindow::resetToStart()
 		delete frFile;
 		frFile = NULL;
 	}
+	
+	clearLog();
+	
 	dispNum = 0;
 	dispFunc = None;
 	logStrm<<"Reset to initial state";
@@ -2301,6 +2322,11 @@ void MainWindow::exitApp()
 ** Private helper functions
 *******************************************
 ******************************************/
+void MainWindow::clearLog()
+{
+	messageLog->Clear();
+	messageLog->LoadBuffer("Message Log Cleared");
+}
 
 void MainWindow::pushToLog()
 {
@@ -2345,7 +2371,7 @@ TTree* MainWindow::testTree(int runN)
 	TTree* temp = retrieveTree(runN);
 	if( temp==NULL )
 	{
-		logStrm<<"Missing a raw data tree, you might have the wrong combined file loaded";
+		logStrm<<"Missing a raw data tree, you might have the wrong merge file loaded";
 		pushToLog();
 		return NULL;
 	}
@@ -2832,7 +2858,7 @@ bool MainWindow::checkUpToMainFile()
 	}
 	else if ( mainFile == NULL )
 	{
-		logStrm<<"\nLoad/create combined file first";
+		logStrm<<"\nLoad/create merge file first";
 		pushToLog();
 		return false;
 	}

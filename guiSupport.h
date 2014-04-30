@@ -9,6 +9,7 @@ const char *auxRootFileType[] = { "Aux Root File",     "*_aux.root",
 
 const char *frRootFileType[] = { "Friend Root File",     "*_frnd.root",
                                   0,                      0 };
+const char *initMessage="Welcome to the Notre Dame Giant Resonance Analysis GUI";
 
 struct RunData
 {
