@@ -406,7 +406,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	******************************************/
 	//create the file ops label and add it
 	fileLabel = new TGLabel(fileOpsRowFrame, "File Ops: ");
-	fileOpsRowFrame->AddFrame(fileLabel, new TGLayoutHints(kLHintsNoHints, 2,2,2,2));
+	fileOpsRowFrame->AddFrame(fileLabel, new TGLayoutHints(kLHintsCenterY, 2,2,2,2));
 	//create and connect the file operations buttons
 	//read run data button
 	rdRunData = new TGTextButton(fileOpsRowFrame,"Read Run Data");
@@ -447,7 +447,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	** File Control buttons
 	******************************************/
 	fileControlLabel = new TGLabel(fileActFrame, "File Activation: ");
-	fileActFrame->AddFrame(fileControlLabel, new TGLayoutHints(kLHintsLeft,2,2,2,2));
+	fileActFrame->AddFrame(fileControlLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY,2,2,2,2));
 	//create and connect the file activation buttons
 	//make tree file the current dir
 	treeFocusBut = new TGTextButton(fileActFrame,"Tree File");
@@ -471,7 +471,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	** Overall Control buttons
 	******************************************/
 	controlLabel = new TGLabel(overallControlFrame, "Overall Control: ");
-	overallControlFrame->AddFrame(controlLabel, new TGLayoutHints(kLHintsLeft,2,2,2,2));
+	overallControlFrame->AddFrame(controlLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY,2,2,2,2));
 	//create and connect the overall control buttons
 	//clear log button
 	clLogBut = new TGTextButton(overallControlFrame,"Clear Log");
@@ -1274,6 +1274,7 @@ void MainWindow::getFirstOrdShapes()
 		float avg = 0.0;
 		logStrm<<"Preparing to apply first order shape corection to run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
 		pushToLog();
+		
 		//fill the new tree
 		for(Long64_t j = 0; j<numEnts; ++j)
 		{
@@ -2263,6 +2264,15 @@ void MainWindow::endSeqSpec()
 ** Overall Control operations
 *******************************************
 ******************************************/
+void MainWindow::clearLog()
+{
+	messageLog->Clear();
+	messageLog->LoadBuffer("Message Log Cleared");
+	messageLog->Update();
+	messageLog->AddLine("");
+	messageLog->ShowBottom();
+}
+
 void MainWindow::resetToStart()
 {
 	if ( runs == NULL && mainFile == NULL && auxFile==NULL && frFile==NULL)
@@ -2322,11 +2332,6 @@ void MainWindow::exitApp()
 ** Private helper functions
 *******************************************
 ******************************************/
-void MainWindow::clearLog()
-{
-	messageLog->Clear();
-	messageLog->LoadBuffer("Message Log Cleared");
-}
 
 void MainWindow::pushToLog()
 {
@@ -2336,6 +2341,8 @@ void MainWindow::pushToLog()
 	
 	//first get the string from the string stream
 	string temp = logStrm.str();
+	//dump this to cout as well
+	cout<<temp<<endl;
 	//reset the string stream;
 	logStrm.str("");
 	//set up a loop to parse the string searching for \n characters
@@ -2349,7 +2356,7 @@ void MainWindow::pushToLog()
 	}
 	messageLog->AddLine(temp.c_str());
 	messageLog->ShowBottom();
-	//messageLog->Update();
+	messageLog->Update();
 }
 
 string MainWindow::makeTreeName(int runN)
