@@ -1522,7 +1522,7 @@ void MainWindow::simpleGetCS()
 	output.open(temp.c_str());
 	
 	//now output the information line of the csv file
-	output<<"Run number, angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ...";
+	output<<"Run number, angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ...\n";
 	
 	logStrm<<"\nPlease be aware, the simple version of this function assumes that all of the input";
 	pushToLog();
