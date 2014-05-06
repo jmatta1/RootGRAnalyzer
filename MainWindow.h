@@ -1626,7 +1626,7 @@ void MainWindow::simpleGetCS()
 				}
 				else
 				{
-					output;
+					output<<"\n";
 				}
 			}
 		}
