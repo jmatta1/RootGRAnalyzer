@@ -1869,10 +1869,10 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 	ostringstream texBuilder;
 	double bgWidth = ( (xVals[1]-xVals[0]) + (xVals[3]-xVals[2]) );
 	double trWidth = ( xVals[2]-xVals[1] );
-	texBuilder<<"The true region with is: "<<trWidth;
+	texBuilder<<"The true region width is: "<<trWidth;
 	text->AddText(texBuilder.str().c_str());
 	texBuilder.str("");
-	texBuilder<<"The bgnd region with is: "<<bgWidth;
+	texBuilder<<"The bgnd region width is: "<<bgWidth;
 	text->AddText(texBuilder.str().c_str());
 	texBuilder.str("");
 	texBuilder<<"The normalization is:    "<<(trWidth/bgWidth);
