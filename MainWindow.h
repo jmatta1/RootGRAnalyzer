@@ -84,6 +84,7 @@ public:
 	void getBasicCSParamsSimple();
 	void getBasicCSParamsPerRun();
 	void simpleGetCS();
+	void getCSByAngle();
 
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -240,6 +241,7 @@ private:
 	TGTextButton *getCSParamsAllRunsBut;
 	TGTextButton *getCSParamsPerRunBut;
 	TGTextButton *scsBut;
+	TGTextButton *byAngleCSBut;
 	//sequential display buttons
 	TGTextButton *prevSpec;
 	TGTextButton *nextSpec;
@@ -349,6 +351,10 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//Simple get cross-sections button
 	scsBut = new TGTextButton(sideBarFrame,"Simple CS Extraction");
 	scsBut->Connect("Clicked()","MainWindow",this,"simpleGetCS()");
+	//get cross-sections by angle
+	byAngleCSBut = new TGTextButton(sideBarFrame,"CS By Angle");
+	byAngleCSBut->Connect("Clicked()","MainWindow",this,"getCSByAngle()");
+	
 	
 	//add the sidebar buttons to the sidebar frame
 	sideBarFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
@@ -365,6 +371,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	sideBarFrame->AddFrame(getCSParamsAllRunsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getCSParamsPerRunBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(byAngleCSBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	/******************************************
 	** Sequential Display buttons
@@ -1193,13 +1200,13 @@ void MainWindow::getFirstOrdShapes()
 		logStrm<<"Give Top Edge";
 		pushToLog();
 		//wait for the user to enter the cut then retrieve it
-		TCutG* upper=(TCutG*)gPad->WaitPrimitive("Graph","PolyLine");
+		TGraph* upper=(TGraph*)gPad->WaitPrimitive("Graph","PolyLine");
 		//change the name of the cut to something more descriptive
 		upper->SetName("top");
 		logStrm<<"Give Bottom Edge";
 		pushToLog();
 		//wait for the user to enter the cut then retrieve it
-		TCutG* lower=(TCutG*)gPad->WaitPrimitive("Graph","PolyLine");
+		TGraph* lower=(TGraph*)gPad->WaitPrimitive("Graph","PolyLine");
 		//change the name of the cut to something more descriptive
 		lower->SetName("bottom");
 		
@@ -1639,6 +1646,89 @@ void MainWindow::simpleGetCS()
 	logStrm<<"Done Getting Cross-Sections";
 	pushToLog();
 }
+
+void MainWindow::getCSByAngle()
+{
+	if(!checkUpToFrFile())
+	{	return; }
+	
+	if(numBnds!=numRuns)
+	{
+		logStrm<<"Boundary Information has not been entered for every run";
+		pushToLog();
+		return;
+	}
+	
+	//first we need to find out a file name to save this data to
+	logStrm<<"\nGive the file name to save this cross-section data to";
+	pushToLog();
+	static TString directory(".");
+	TGFileInfo fileInfo;
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = csvDataType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	string temp = string(fileInfo.fFilename);
+	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
+	{
+		temp.append(".csv");
+	}
+	directory = fileInfo.fIniDir;
+	
+	//now open the file
+	ofstream output;
+	output.open(temp.c_str());
+	
+	//now output the information line of the csv file
+	output<<"Run number, angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ...\n";
+	
+	logStrm<<"\nPlease be aware, the simple version of this function assumes that all of the input";
+	pushToLog();
+	logStrm<<"That you give with regards to phi width etc holds for the entire set of runs\n";
+	pushToLog();
+	
+	int numStates=0;
+	double thetaMin=0.0, thetaMax=0.0, delta=0.0, phiWidth=0.0;
+	int numSegs=0;
+	
+	//next we need to iterate through the set of runs
+	for(int i=0; i<numRuns; ++i)
+	{
+		numStates = csBnds[i].numStates;
+		thetaMin = csBnds[i].minTheta;
+		thetaMax = csBnds[i].maxTheta;
+		numSegs = csBnds[i].thetaSegs;
+		phiWidth = csBnds[i].phiWidth;
+		delta = (thetaMax-thetaMin)/((float)numSegs);
+		//now retrieve the background subtracted spectrum for this run
+		TH2F* spec = testSubSpec(runs[i].runNumber);
+		if(spec==NULL)
+		{	return;	}
+		
+		//get the lines defining the state bounds
+		for(int j=0; j<numStates; ++j)
+		{
+			logStrm<<"Please click on the upper and lower bounds for state "<<(j+1);
+			pushToLog();
+			TGraph* bounds=(TGraph*)gPad->WaitPrimitive("Graph","PolyLine");
+			
+		}
+	}
+	whiteBoard->Clear();
+	whiteBoard->Update();
+	logStrm<<"Done Getting Cross-Sections";
+	pushToLog();
+}
+
 
 /******************************************
 *******************************************

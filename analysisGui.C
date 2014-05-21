@@ -10,7 +10,7 @@ void makeGUI()
 	else
 	{
 		cout<<"GUI already exists, or it was closed with the x buttons"<<endl;
-		cout<<"if it was closed via the x buttons, issue the command \"GUI=NULL\""<<endl;
+		cout<<"if it was closed via the 'x' buttons, issue the command \"GUI=NULL\""<<endl;
 		cout<<"(no quotation marks) then run this function again"<<endl;
 	}
 }
