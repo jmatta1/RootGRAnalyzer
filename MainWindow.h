@@ -1431,6 +1431,21 @@ void MainWindow::makeBGSubSpecs()
 		
 		//now the spectra should be filled so make the subtracted spectrum
 		subHist->Add(trHist, scaledBGHist, 1, -1);
+		subHist->Sumw2();
+		int nBinsMax=240*300+1;
+		int count = 0;
+		//now zero any bins in the subtracted histogram that are negative
+		for(int k = 1; k<nBinsMax; ++k)
+		{
+			if( (subHist->GetBinContent(k)) < 0 )
+			{
+				++count;
+				subHist->SetBinContent(k, 0.0);
+			}
+		}
+		
+		logStrm<<"Zeroed "<<count<<" bins that were negative after subtraction"<<endl;
+		pushToLog();
 		
 		//now save the spectra
 		auxFile->cd();
