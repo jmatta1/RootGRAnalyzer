@@ -1431,7 +1431,7 @@ void MainWindow::makeBGSubSpecs()
 		
 		//now the spectra should be filled so make the subtracted spectrum
 		subHist->Add(trHist, scaledBGHist, 1, -1);
-		subHist->Sumw2();
+		//subHist->Sumw2();
 		int nBinsMax=240*300+1;
 		int count = 0;
 		//now zero any bins in the subtracted histogram that are negative
@@ -1544,12 +1544,7 @@ void MainWindow::simpleGetCS()
 	output.open(temp.c_str());
 	
 	//now output the information line of the csv file
-	output<<"Run number, angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ...\n";
-	
-	logStrm<<"\nPlease be aware, the simple version of this function assumes that all of the input";
-	pushToLog();
-	logStrm<<"That you give with regards to phi width etc holds for the entire set of runs\n";
-	pushToLog();
+	output<<"Run number, min angle, max angle, central angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ...\n";
 	
 	int numStates=0;
 	double thetaMin=0.0, thetaMax=0.0, delta=0.0, phiWidth=0.0;
@@ -1621,7 +1616,7 @@ void MainWindow::simpleGetCS()
 			yArr[4]=lowAngle;
 			float central=(runs[i].angle + ((lowAngle+highAngle)/2));
 			
-			output<<runs[i].runNumber<<", "<<central<<", ";
+			output<<runs[i].runNumber<<", "<<(low+runs[i].angle)<<", "<<(high+runs[i].angle)<<", "<<central<<", ";
 			
 			for(int k=0; k<numStates; ++k)
 			{
@@ -1658,6 +1653,7 @@ void MainWindow::simpleGetCS()
 	}
 	whiteBoard->Clear();
 	whiteBoard->Update();
+	output.close();
 	logStrm<<"Done Getting Cross-Sections";
 	pushToLog();
 }
@@ -1704,11 +1700,17 @@ void MainWindow::getCSByAngle()
 	output.open(temp.c_str());
 	
 	//now output the information line of the csv file
-	output<<"Run number, angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ...\n";
+	output<<"Run number, min angle, max angle, central angle, st1 cnts, st1 cs, st1 cs err, st2 cnts, st2 cs, st2 cs err, ...\n";
 	
-	logStrm<<"\nPlease be aware, the simple version of this function assumes that all of the input";
+	logStrm<<"\nPlease be aware, clicking in the wrong order W.R.T. lower and upper bounds could result in\n";
 	pushToLog();
-	logStrm<<"That you give with regards to phi width etc holds for the entire set of runs\n";
+	logStrm<<"values with the correct normalization but the wrong sign\n";
+	pushToLog();
+	logStrm<<"Feel free to zoom the spectrum as needed prior to clicking, if you click\n";
+	pushToLog();
+	logStrm<<"multiple times only the first and last clicks will be be used to determin the bounds of the state\n";
+	pushToLog();
+	logStrm<<"The first click will be taken as the lower bound and the second click will be taken as the upper\n";
 	pushToLog();
 	
 	int numStates=0;
@@ -1718,6 +1720,8 @@ void MainWindow::getCSByAngle()
 	//next we need to iterate through the set of runs
 	for(int i=0; i<numRuns; ++i)
 	{
+		logStrm<<"Preparing to construct specta for run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
+		pushToLog();
 		numStates = csBnds[i].numStates;
 		thetaMin = csBnds[i].minTheta;
 		thetaMax = csBnds[i].maxTheta;
@@ -1730,16 +1734,83 @@ void MainWindow::getCSByAngle()
 		{	return;	}
 		
 		//get the lines defining the state bounds
-		for(int j=0; j<numStates; ++j)
+		for(int j=0; j<numSegs; ++j)
 		{
-			logStrm<<"Please click on the upper and lower bounds for state "<<(j+1);
-			pushToLog();
-			TGraph* bounds=(TGraph*)gPad->WaitPrimitive("Graph","PolyLine");
+			//first get the bin numbers for the projection
+			//calculate the low and high angles of the run
+			float low = thetaMin+delta*j;
+			float high = low + delta;
+			float central = (((low+high)/2.0)+runs[i].angle);
+			output<<runs[i].runNumber<<", "<<(low+runs[i].angle)<<", "<<(high+runs[i].angle)<<", "<<central<<", ";
+			TAxis* yAxis = spec->GetYaxis();
+			int loBin = yAxis->FindBin(low);
+			int hiBin = yAxis->FindBin(high);
 			
+			//now get the projection
+			TH1D* xProj = spec->ProjectionX("BG_Sub_X_Proj", loBin, hiBin, "");
+			//now loop across states
+			for( int k=0; k<numStates; ++k)
+			{
+				//find the first cell with >= 1 count
+				int numBins = ( xProj->GetNbinsX() + 1 );
+				int startBin;
+				for( int n = 1; n < numBins; ++n)
+				{
+					if( (xProj->GetBinContent(n))<1 )
+					{
+						startBin = n;
+						n=numBins;
+					}
+				}
+				if(startBin >3)
+				{
+					startBin-=3;
+				}
+				else
+				{
+					startBin=1;
+				}
+				xProj->GetXaxis()->SetRange(startBin,(numBins-1));
+				//draw the projection
+				xProj->Draw();
+				whiteBoard->SetLogy(1);
+				whiteBoard->Update();
+				//get the bounds
+				logStrm<<"Please click on the lower bound and double click on the upper bound for state "<<(k+1);
+				pushToLog();
+				TGraph* bounds=(TGraph*)gPad->WaitPrimitive("Graph","PolyLine");
+				double* xArr = bounds->GetX();
+				int pts = bounds->GetN();
+				float loBnd = xArr[0];
+				float hiBnd = xArr[pts-1];
+				delete bounds;
+				//translate the bounds into bin numbers
+				int loProjBin = xProj->FindBin(loBnd);
+				int hiProjBin = xProj->FindBin(hiBnd);
+				//get the integral and its error
+				double counts = xProj->Integral(loProjBin,hiProjBin);
+				double cntsErr = TMath::Sqrt(counts);
+				//get the cross-section and its error
+				double cs = calcCrossSection(counts, runs[i], delta, phiWidth);
+				double csErr = calcCrossSection(cntsErr, runs[i], delta, phiWidth);
+				//dump to the file
+				output<< counts <<", "<< cs <<", "<< csErr;
+				if(k != (numStates - 1))
+				{
+					output<<", ";
+				}
+				else
+				{
+					output<<"\n";
+				}
+			}
+			delete xProj;
 		}
+		delete spec;
 	}
 	whiteBoard->Clear();
 	whiteBoard->Update();
+	output.close();
 	logStrm<<"Done Getting Cross-Sections";
 	pushToLog();
 }
