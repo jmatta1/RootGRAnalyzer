@@ -47,12 +47,15 @@ private:
 	//sub frames
 	//these are here so that I can know what is in the class, they should be deleted in the typical recursive fashion
 	//when mainWindow is deleted though
-	TGVerticalFrame* mainOrganizer; //the outermost frame in the dialog box
+	TGHorizontalFrame* overAllOrg; //the outermost frame in the dialog box
+	TGVerticalFrame* mainOrganizer; //the organizer for the normal mode of operation buttons
 	TGHorizontalFrame* statesFrame;//the frame for holding the number of states information getters
 	TGHorizontalFrame* minThetaFrame;//the frame for holding the stuff to get the minimum theta
 	TGHorizontalFrame* maxThetaFrame;//the frame for holding the stuff to get the maximum theta
 	TGHorizontalFrame* segsFrame;//the frame for holding the stuff to get the number of segments in theta
 	TGHorizontalFrame* phiFrame;//the frame to hold the stuff for getting the width in phi
+	TGVerticalFrame* customBinsOrganizer; //the organizer for the stuff necessary for custom angular binning
+	
 	
 	//number getters
 	TGNumberEntry* numStatesEntry;//use for getting the number of states to retrieve
