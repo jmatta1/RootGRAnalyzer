@@ -1756,22 +1756,32 @@ void MainWindow::getCSByAngle()
 				int startBin;
 				for( int n = 1; n < numBins; ++n)
 				{
-					if( (xProj->GetBinContent(n))<1 )
+					if( (xProj->GetBinContent(n))>=1 )
 					{
 						startBin = n;
 						n=numBins;
 					}
 				}
 				if(startBin >3)
-				{
-					startBin-=3;
-				}
+				{	startBin-=3; }
 				else
+				{	startBin=1; }
+				//find the last cell with >= 1 count
+				int lastBin;
+				for( int n = (numBins-1); n > 0; --n)
 				{
-					startBin=1;
+					if( (xProj->GetBinContent(n))>=1 )
+					{
+						lastBin = n;
+						n=0;
+					}
 				}
-				xProj->GetXaxis()->SetRange(startBin,(numBins-1));
+				if(lastBin < (numBins - 3))
+				{	lastBin+=3; }
+				else
+				{	lastBin=(numBins - 1); }
 				//draw the projection
+				xProj->GetXaxis()->SetRange(startBin,(lastBin));
 				xProj->Draw();
 				whiteBoard->SetLogy(1);
 				whiteBoard->Update();
