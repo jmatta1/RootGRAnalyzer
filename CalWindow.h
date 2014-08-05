@@ -1,6 +1,8 @@
 #ifndef CAL_WINDOW_H
 #define CAL_WINDOW_H
 
+#include"bicubicinterp.h"
+
 class CalibrationWindow
 {
 	RQ_OBJECT("CalibrationWindow")

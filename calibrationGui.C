@@ -1,16 +1,16 @@
-#include"MainWindow.h"
+#include"CalWindow.h"
 
-MainWindow* GUI=NULL;
+CalWindow* CALGUI=NULL;
 void makeGUI()
 {
-	if(GUI==NULL)
+	if(CALGUI==NULL)
 	{
-		GUI = new MainWindow(gClient->GetRoot(),500,400);
+		CALGUI = new CalWindow(gClient->GetRoot(),500,400);
 	}
 	else
 	{
-		cout<<"GUI already exists, or it was closed with the x buttons"<<endl;
-		cout<<"if it was closed via the 'x' buttons, issue the command \"GUI=NULL\""<<endl;
+		cout<<"CALGUI already exists, or it was closed with the 'x' buttons"<<endl;
+		cout<<"if it was closed via the 'x' buttons, issue the command \"CALGUI=NULL\""<<endl;
 		cout<<"(no quotation marks) then run this function again"<<endl;
 	}
 }
@@ -19,8 +19,8 @@ void killGUI()
 {
 	if(GUI!=NULL)
 	{
-		delete GUI;
-		GUI=NULL;
+		delete CALGUI;
+		CALGUI=NULL;
 	}
 	else
 	{
