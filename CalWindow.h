@@ -961,7 +961,7 @@ void CalWindow::doScatteringCalcs()
 	pushToLog();
 	logStrm<<"Excitation En (MeV)| Scattering KE | Focal Plane KE | Focal Plane Momentum";
 	pushToLog();
-	for(int i=0; i<5; ++i)
+	for(int i=0; i<numStates; ++i)
 	{
 		//get the residual 'mass'
 		double rM = tM + (states[i].en/1000.0);
