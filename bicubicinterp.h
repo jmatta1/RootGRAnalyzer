@@ -19,6 +19,7 @@ public:
 	~BiCubicInterpolation();
 	
 	float operator()(float x, float y);
+	float getVal(float x, float y);
 
 private:
 	//holds the number of points
@@ -161,10 +162,46 @@ float BiCubicInterpolation::operator()(float x, float y)
 		}
 	}
 	//assume we are in the interpolation region and do the calculation
-	float y0 = ySplines[lo-1](y);
-	float y1 = ySplines[lo](y);
-	float y2 = ySplines[hi](y);
-	float y3 = ySplines[hi+1](y);
+	float y0 = ySplines[lo-1].getVal(y);
+	float y1 = ySplines[lo].getVal(y);
+	float y2 = ySplines[hi].getVal(y);
+	float y3 = ySplines[hi+1].getVal(y);
+	float dy1=(y1-y0);
+	float dy2=(y1-y0);
+	float dy3=(y1-y0);
+	float a = ((aTerm1[lo]*dy1+aTerm2[lo]*dy2+aTerm3[lo]*dy3)/denoms[lo]);
+	float b = ((bTerm1[lo]*dy1+bTerm2[lo]*dy2+bTerm3[lo]*dy3)/denoms[lo]);
+	float t = (x-xList[lo])*idX[hi];
+	float mt = (1.0-t);
+	float temp1 = (mt*y1+t*y2);
+	float temp2 = (t*mt*(a*mt+b*t));
+	return (temp1+temp2);
+}
+
+float BiCubicInterpolation::getVal(float x, float y)
+{
+	//first find the indices of the x values that that bracket x
+	int lo, hi, ind;
+	
+	lo = 0;
+	hi = regions;//because regions is always numX-1
+	while ((hi-lo)>1)
+	{
+		ind=((hi+lo)>>1);
+		if(xList[ind] > x)
+		{
+			hi=ind;
+		}
+		else
+		{
+			lo=ind;
+		}
+	}
+	//assume we are in the interpolation region and do the calculation
+	float y0 = ySplines[lo-1].getVal(y);
+	float y1 = ySplines[lo].getVal(y);
+	float y2 = ySplines[hi].getVal(y);
+	float y3 = ySplines[hi+1].getVal(y);
 	float dy1=(y1-y0);
 	float dy2=(y1-y0);
 	float dy3=(y1-y0);

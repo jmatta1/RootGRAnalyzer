@@ -18,6 +18,7 @@ public:
 	inline void init(float* xPtArr, float* yPtArr, int numPts, float yp1, float ypn, BndType bt);
 
 	float operator()(float x);
+	float getVal(float x);
 
 private:
 	void setupSpline(float yp1, float ypn, BndType bt);
@@ -112,6 +113,39 @@ void CubicSpline::setupSpline(float yp1, float ypn, BndType bt)
 }
 
 float CubicSpline::operator()(float x)
+{
+	if(xArr == NULL)
+	{
+		return std::numeric_limits<float>::quiet_NaN();
+	}
+	
+	int klo, khi, k;
+	float output, h, b, a;
+	
+	klo = 0;
+	khi = (this->size)-1;
+	while ((khi-klo)>1)
+	{
+		k=(khi+klo)>>1;
+		if(xArr[k] > x)
+		{
+			khi=k;
+		}
+		else
+		{
+			klo=k;
+		}
+	}//klow and khi now bracket the input value for x in the array of xvalues
+
+	h = xArr[khi]-xArr[klo];
+	//technically we should make certain that h!=0.0 here but whatever
+	a = (xArr[khi]-x)/h;
+	b = (x-xArr[klo])/h;
+	output = ((a*yArr[klo])+(b*yArr[khi])+(((((a*a*a-a)*y2Arr[klo])+((b*b*b-b)*y2Arr[khi]))*(h*h))/6.0));
+	return output;
+}
+
+float CubicSpline::getVal(float x)
 {
 	if(xArr == NULL)
 	{
