@@ -17,7 +17,7 @@ void makeGUI()
 
 void killGUI()
 {
-	if(GUI!=NULL)
+	if(CALGUI!=NULL)
 	{
 		delete CALGUI;
 		CALGUI=NULL;

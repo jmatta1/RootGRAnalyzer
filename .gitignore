@@ -3,3 +3,4 @@
 init.C
 utils.C
 oldFuncs.C
+*.igf

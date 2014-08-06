@@ -10,7 +10,11 @@ const char *auxRootFileType[] = { "Aux Root File",     "*_aux.root",
 const char *frRootFileType[] = { "Friend Root File",     "*_frnd.root",
                                   0,                      0 };
 
+const char *interpDataType[] = { "Interp Data",      "*.igf",
+                               0,               0 };
+
 const char *initMessage="Welcome to the Notre Dame Giant Resonance Analysis GUI";
+const char *calInitMessage="Welcome to the Notre Dame Focal Plane Calibration GUI";
 
 struct RunData
 {
@@ -28,6 +32,21 @@ struct RunData
 	float vdcEff;
 };
 
+struct FitData
+{
+	float centroid;
+	float width;
+	float height;
+};
+
+struct StateData
+{
+	int index;
+	double en;
+	FitData* assignedFit;
+	double scatEn;
+	double fpMom;
+};
 
 inline void swapDoubles(double& first, double& second)
 {
