@@ -814,7 +814,6 @@ void CalWindow::resetToStart()
 	clearLog();
 	
 	dispNum = 0;
-	dispFunc = None;
 	logStrm<<"Reset to initial state";
 	pushToLog();
 	
