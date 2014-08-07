@@ -167,8 +167,8 @@ float BiCubicInterpolation::operator()(float x, float y)
 	float y2 = ySplines[hi].getVal(y);
 	float y3 = ySplines[hi+1].getVal(y);
 	float dy1=(y1-y0);
-	float dy2=(y1-y0);
-	float dy3=(y1-y0);
+	float dy2=(y2-y1);
+	float dy3=(y3-y2);
 	float a = ((aTerm1[lo]*dy1+aTerm2[lo]*dy2+aTerm3[lo]*dy3)/denoms[lo]);
 	float b = ((bTerm1[lo]*dy1+bTerm2[lo]*dy2+bTerm3[lo]*dy3)/denoms[lo]);
 	float t = (x-xList[lo])*idX[hi];
@@ -203,8 +203,8 @@ float BiCubicInterpolation::getVal(float x, float y)
 	float y2 = ySplines[hi].getVal(y);
 	float y3 = ySplines[hi+1].getVal(y);
 	float dy1=(y1-y0);
-	float dy2=(y1-y0);
-	float dy3=(y1-y0);
+	float dy2=(y2-y1);
+	float dy3=(y3-y2);
 	float a = ((aTerm1[lo]*dy1+aTerm2[lo]*dy2+aTerm3[lo]*dy3)/denoms[lo]);
 	float b = ((bTerm1[lo]*dy1+bTerm2[lo]*dy2+bTerm3[lo]*dy3)/denoms[lo]);
 	float t = (x-xList[lo])*idX[hi];
