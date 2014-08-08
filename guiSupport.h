@@ -34,16 +34,17 @@ struct RunData
 
 struct FitData
 {
+	float height;
 	float centroid;
 	float width;
-	float height;
+	FitData& operator=(FitData& rhs){height=rhs.height; centroid=rhs.centroid; width=rhs.width; return *this;}
 };
 
 struct StateData
 {
 	int index;
 	double en;
-	FitData* assignedFit;
+	int fitIndex;
 	double scatEn;
 	double fpMom;
 };

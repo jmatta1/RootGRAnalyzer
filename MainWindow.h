@@ -2274,10 +2274,6 @@ void MainWindow::grabBasicCsInfoSimple(const UpdateCallType& tp)
 	}
 }
 
-	BasicCSDialog* basicInfoGrabber;
-	CSBounds* csBnds;
-	int numBnds;
-
 void MainWindow::grabBasicCsInfoPerRun(const UpdateCallType& tp)
 {
 	static int prevRun;

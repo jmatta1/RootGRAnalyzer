@@ -46,24 +46,37 @@ using std::ios_base;
 #include<TGNumberEntry.h>
 #include<TMath.h>
 #include<TApplication.h>
+#include<TFitEditor.h>
+#include<TROOT.h>
+#include<TPluginManager.h>
+#include<TList.h>
 
 //my includes
 #include"bicubicinterp.h"
 #include"guiSupport.h"
+//#include"paramChangeDialog.h"
 
 enum UpdateCallType{ Initial, Normal, Final};
 enum WidgetNumberings{ PolOrderEntry = 0};
+
 TCut RayCut;
 
 class CalWindow
 {
-	RQ_OBJECT("CalibrationWindow")
+	RQ_OBJECT("CalWindow")
 public:
 	CalWindow(const TGWindow* parent, UInt_t width, UInt_t height);
 	~CalWindow();
 	
-	//actions
-	void getFitParams();
+	//fit control
+	void setFitFunc();
+	void getFitData();
+	
+	//calibration control
+	void transferFit();
+	void removeFit();
+	void assignFitToState();
+	void unassignFitFromState();
 	
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -79,9 +92,6 @@ public:
 	void readStateData();
 	
 	//overall control operations
-	void makeTreeFileActive(){mainFile->cd();}
-	void makeAuxFileActive(){auxFile->cd();}
-	void makeFriendFileActive(){frFile->cd();}
 	void clearLog();
 	void resetToStart();
 	void exitApp();
@@ -97,6 +107,8 @@ private:
 	bool checkUpToAuxFile();
 	bool checkUpToFrFile();
 	bool checkUpToInterpFile();
+	bool checkUpToStates();
+	bool checkForFitStart();
 	void doScatteringCalcs();
 	
 	//functions for constructing names of various constructs
@@ -158,19 +170,17 @@ private:
 	//analysis stuff
 	RunData* runs;
 	StateData* states;
+	FitData* tempFits;
+	FitData* fitList;
 	int numRuns;
 	int numStates;
 	TFile* mainFile;
 	TFile* auxFile;
 	TFile* frFile;
 	BiCubicInterpolation* interp;
-	TF1* frm;
-	TF1* pks;
-	TF1* bg;
 	int currBGOrder;
 	int numPeaks;
-	double fitMin;
-	double fitMax;
+	int numFits;
 
 	//display stuff
 	int dispNum;
@@ -185,6 +195,7 @@ private:
 	//Main Gui stuff
 	TSystem *sys;
 	TGMainFrame *mainWindow;
+	TFitEditor* fitDiag;
 	//The string stream for building messages for the logger
 	ostringstream logStrm;
 	//main canvas for display
@@ -197,10 +208,11 @@ private:
 	TGVerticalFrame* sideBarFrame;//holds the sidebar
 	TGHorizontalFrame* fileOpsRowFrame;//holds the row of buttons at the bottom for file operations
 	TGHorizontalFrame* bottomBarFrame;//holds the subframes for file control and overall control
-	TGHorizontalFrame* fileActFrame;//holds the buttons for activating files
+	TGHorizontalFrame* specDispFrame;//holds the buttons for controlling spectra
 	TGHorizontalFrame* overallControlFrame;//holds the overall control buttons
 	TGVerticalFrame* messageLogFrame;//frame that only holds the message log, necessary for the resizing trick
 	TGHorizontalFrame* orderFrame;//holds the polynomial order getter stuff
+	TGHorizontalFrame* numPksFrame;//holds the polynomial order getter stuff
 	
 	//the message container for the window to try and make things so we do not need the terminal at all.
 	TGTextView* messageLog;
@@ -215,10 +227,21 @@ private:
 	TGLabel* sDLabel;
 	TGLabel* fitCtrlLabel;
 	TGLabel* orderLabel;
+	TGLabel* numPksLabel;
+	TGLabel* calCtrlLabel;
 	
 	//action buttons
 	TGNumberEntry* bgPolOrderGetter;//used for getting the order of the polynomial background
+	TGNumberEntry* numPeaksGetter;//used for getting the number of peaks to fit
+	TGTextButton* setFunc;
 	TGTextButton* getFit;
+	TGComboBox* tempFitBox;
+	TGTextButton* useFit;
+	TGComboBox* fitBox;
+	TGTextButton* delFit;
+	TGComboBox* stateBox;
+	TGTextButton* assignFit;
+	TGTextButton* unassignFit;
 	//sequential display buttons
 	TGTextButton *prevSpec;
 	TGTextButton *nextSpec;
@@ -231,11 +254,6 @@ private:
 	TGTextButton *opFrFile;
 	TGTextButton *opInterpFile;
 	TGTextButton *rdStateData;
-	
-	//file activation buttons
-	TGTextButton *treeFocusBut;
-	TGTextButton *auxFocusBut;
-	TGTextButton *frFocusBut;
 	
 	//overall control buttons
 	TGTextButton *clLogBut;
@@ -255,17 +273,21 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	interp = NULL;
 	dispNum = 0;
 	sclToggle=false;
-	frm = NULL;
-	pks=NULL;
-	bg=NULL;
 	subSpec=NULL;
 	cutSpec=NULL;
+	fitDiag=NULL;
 	currBGOrder=0;
+	numPeaks=0;
+	numFits=0;
+
+	tempFits = new FitData[5];
 
 	//sys = new TUnixSystem();
 	sys = gSystem;
 	
 	RayCut.SetTitle("Rayid==0");
+	
+	//paramDialog = new ParamAdjustmentDialog(parent,width,height);
 	
 	//create the main window for the gui
 	mainWindow = new TGMainFrame(parent,width,height);
@@ -282,47 +304,79 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	bottomFrame = new TGVerticalFrame(organizerFrame,width,height);
 	fileOpsRowFrame = new TGHorizontalFrame(bottomFrame,width,height);
 	bottomBarFrame = new TGHorizontalFrame(bottomFrame,width,height);
-	fileActFrame = new TGHorizontalFrame(bottomBarFrame,width,height);
+	specDispFrame = new TGHorizontalFrame(bottomBarFrame,width,height);
 	overallControlFrame = new TGHorizontalFrame(bottomBarFrame,width,height);
 	messageLogFrame  = new TGVerticalFrame(organizerFrame,width,height, kChildFrame | kFixedHeight);
 	orderFrame = new TGHorizontalFrame(sideBarFrame, width, height);
+	numPksFrame = new TGHorizontalFrame(sideBarFrame, width, height);
 	
 	//create and connect the buttons in the side bar
+	/******************************************
+	** Fit Control Stuff
+	******************************************/
 	fitCtrlLabel = new TGLabel(sideBarFrame, "Fit Control");
 	sideBarFrame->AddFrame(fitCtrlLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	//numer entry for getting the bg order
 	bgPolOrderGetter = new TGNumberEntry( orderFrame, 1.0, 5, PolOrderEntry, TGNumberFormat::kNESInteger, 
-			TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, -1, 3);
+			TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, -1, 2);
 	orderLabel = new TGLabel(orderFrame, "BG Pol Ord");
 	orderFrame->AddFrame(bgPolOrderGetter, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
 	orderFrame->AddFrame(orderLabel, new TGLayoutHints(kLHintsNormal, 5, 5, 3, 4) );
-	getFit = new TGTextButton(sideBarFrame,"Start New Fit");
-	getFit->Connect("Clicked()","CalWindow",this,"getFitParams()");
-	
+	//number entry for getting the number of peaks
+	numPeaksGetter = new TGNumberEntry( numPksFrame, 1.0, 5, PolOrderEntry, TGNumberFormat::kNESInteger, 
+			TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, 1, 5);
+	numPksLabel = new TGLabel(numPksFrame, "NumPeaks");
+	numPksFrame->AddFrame(numPeaksGetter, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
+	numPksFrame->AddFrame(numPksLabel, new TGLayoutHints(kLHintsNormal, 5, 5, 3, 4) );
+	//button that sets the fit panel function from the two previous numbers
+	setFunc = new TGTextButton(sideBarFrame,"Set Fit Func");
+	setFunc->Connect("Clicked()","CalWindow",this,"setFitFunc()");
+	//button that gets the fit data from the fit panel
+	getFit = new TGTextButton(sideBarFrame,"Get Fit Data");
+	getFit->Connect("Clicked()","CalWindow",this,"getFitData()");
+
 	//add the sidebar buttons to the sidebar frame
 	sideBarFrame->AddFrame(orderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(numPksFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(setFunc, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-
 	
 	/******************************************
-	** Sequential Display buttons
+	** Calibration Control
 	******************************************/
-	sDLabel = new TGLabel(sideBarFrame, "Spectrum Control");
-	sideBarFrame->AddFrame(sDLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	//create and connect the sequential display buttons
-	//show previous spectrum
-	prevSpec = new TGTextButton(sideBarFrame,"Prev Run");
-	prevSpec->Connect("Clicked()","CalWindow",this,"prevSeqSpec()");
-	//show next spectrum
-	nextSpec = new TGTextButton(sideBarFrame,"Next Run");
-	nextSpec->Connect("Clicked()","CalWindow",this,"nextSeqSpec()");
-	//toggle spectrum axis
-	toggleScale = new TGTextButton(sideBarFrame,"Toggle Scale");
-	toggleScale->Connect("Clicked()","CalWindow",this,"toggleSpec()");
+	calCtrlLabel = new TGLabel(sideBarFrame, "Calib. Control");
+	sideBarFrame->AddFrame(calCtrlLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
-	//add the sequential display buttons to their frame
-	sideBarFrame->AddFrame(prevSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(nextSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(toggleScale, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	//add the combo box that holds temporary fit information
+	tempFitBox = new TGComboBox(sideBarFrame);
+	tempFitBox->AddEntry("Retrieved Fits",0);
+	tempFitBox->Select(0);
+	tempFitBox->Resize(100,20);
+	sideBarFrame->AddFrame(tempFitBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	useFit = new TGTextButton(sideBarFrame,"Use Fit");
+	useFit->Connect("Clicked()","CalWindow",this,"transferFit()");
+	sideBarFrame->AddFrame(useFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	//add the combo box that holds the long term fits
+	fitBox = new TGComboBox(sideBarFrame);
+	fitBox->AddEntry("Stored Fits",0);
+	fitBox->Select(0);
+	fitBox->Resize(100,20);
+	sideBarFrame->AddFrame(fitBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	delFit = new TGTextButton(sideBarFrame,"Remove Fit");
+	delFit->Connect("Clicked()","CalWindow",this,"removeFit()");
+	sideBarFrame->AddFrame(delFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	assignFit = new TGTextButton(sideBarFrame,"Assign Fit");
+	assignFit->Connect("Clicked()","CalWindow",this,"assignFitToState()");
+	sideBarFrame->AddFrame(assignFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	//add the combo box that holds the state information
+	stateBox = new TGComboBox(sideBarFrame);
+	stateBox->AddEntry("States",0);
+	stateBox->Select(0);
+	stateBox->Resize(100,20);
+	sideBarFrame->AddFrame(stateBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	unassignFit = new TGTextButton(sideBarFrame,"Unassign Fit");
+	unassignFit->Connect("Clicked()","CalWindow",this,"unassignFitFromState()");
+	sideBarFrame->AddFrame(unassignFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//add the sidebar to the canvas frame
 	canvasFrame->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY, 2,2,2,2) );
@@ -376,29 +430,30 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//add the file operations frame to its frame
 	bottomFrame->AddFrame(fileOpsRowFrame, new TGLayoutHints(kLHintsExpandX | kLHintsTop, 2,2,2,2) );
 	
-	/******************************************
-	** File Control buttons
-	******************************************/
-	fileControlLabel = new TGLabel(fileActFrame, "File Activation: ");
-	fileActFrame->AddFrame(fileControlLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY,2,2,2,2));
-	//create and connect the file activation buttons
-	//make tree file the current dir
-	treeFocusBut = new TGTextButton(fileActFrame,"Tree File");
-	treeFocusBut->Connect("Clicked()","CalWindow",this,"makeTreeFileActive()");
-	//make aux file the current dir
-	auxFocusBut = new TGTextButton(fileActFrame,"Aux File");
-	auxFocusBut->Connect("Clicked()","CalWindow",this,"makeAuxFileActive()");
-	//make friend file the current dir
-	frFocusBut = new TGTextButton(fileActFrame,"Friend File");
-	frFocusBut->Connect("Clicked()","CalWindow",this,"makeFriendFileActive()");
 	
-	//add the file activation buttons to their frame
-	fileActFrame->AddFrame(treeFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
-	fileActFrame->AddFrame(auxFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
-	fileActFrame->AddFrame(frFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
+	/******************************************
+	** Sequential Display buttons
+	******************************************/
+	sDLabel = new TGLabel(specDispFrame, "Spectrum Control");
+	specDispFrame->AddFrame(sDLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	//create and connect the sequential display buttons
+	//show previous spectrum
+	prevSpec = new TGTextButton(specDispFrame,"Prev Run");
+	prevSpec->Connect("Clicked()","CalWindow",this,"prevSeqSpec()");
+	//show next spectrum
+	nextSpec = new TGTextButton(specDispFrame,"Next Run");
+	nextSpec->Connect("Clicked()","CalWindow",this,"nextSeqSpec()");
+	//toggle spectrum axis
+	toggleScale = new TGTextButton(specDispFrame,"Toggle Scale");
+	toggleScale->Connect("Clicked()","CalWindow",this,"toggleSpec()");
+	
+	//add the sequential display buttons to their frame
+	specDispFrame->AddFrame(prevSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	specDispFrame->AddFrame(nextSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	specDispFrame->AddFrame(toggleScale, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//add the file activation frame to its frame
-	bottomBarFrame->AddFrame(fileActFrame, new TGLayoutHints(kLHintsExpandX | kLHintsLeft, 2,2,2,2) );
+	bottomBarFrame->AddFrame(specDispFrame, new TGLayoutHints(kLHintsExpandX | kLHintsLeft, 2,2,2,2) );
 	
 	/******************************************
 	** Overall Control buttons
@@ -451,7 +506,7 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	mainWindow->AddFrame(organizerFrame,  new TGLayoutHints(kLHintsExpandX | kLHintsExpandY | kLHintsBottom, 2,2,2,2) );
 	
 	//set the name of the main frame
-	mainWindow->SetWindowName("Analysis GUI");
+	mainWindow->SetWindowName("Calibration GUI");
 	//go through the steps to draw this beast
 	//map the subwindows
 	mainWindow->MapSubwindows();
@@ -494,6 +549,8 @@ CalWindow::~CalWindow()
 		delete[] states;
 		states = NULL;
 	}
+	
+	//delete fitDialog;
 	
 	//mainWindow->Cleanup();
 	mainWindow->CloseWindow();
@@ -785,16 +842,21 @@ void CalWindow::readStateData()
 	input.seekg(0,ios_base::beg);
 	//allocate the runs array
 	states = new StateData[numStates];
+	fitList = new FitData[numStates];
 	//now read line by line to get the run data
 	getline(input, line);
 	int count = 0;
+
 	while(!input.eof() && count<numStates)
 	{
 		istringstream conv;
 		conv.str(line);
 		states[count].index = count;
 		conv>>(states[count].en);
-		states[count].assignedFit = NULL;
+		ostringstream namer;
+		namer<<"En: "<<(states[count].en/1000.0)<<" Unas.";
+		stateBox->AddEntry(namer.str().c_str(),count+1);
+		states[count].fitIndex = -1;
 		getline(input, line);
 		++count;
 	}
@@ -803,34 +865,20 @@ void CalWindow::readStateData()
 	displaySubSpec(Initial);
 }
 
-
+//	TGNumberEntry* numPeaksGetter;//used for getting the order of the polynomial background
 /******************************************
 *******************************************
 ** Fit operations
 *******************************************
 ******************************************/
-void CalWindow::getFitParams()
+void CalWindow::setFitFunc()
 {
+	if(!checkUpToStates())
+	{return;}
 	//get the polynomial order
 	currBGOrder = bgPolOrderGetter->GetIntNumber();
-	//tell the user what to do
-	logStrm<<"Click once at the desired lower bound for the fit, once at the approximate centroid of each peak desired";
-	pushToLog();
-	logStrm<<"Then double click at the upper bound for the fit";
-	pushToLog();
-	TGraph* pts = (TGraph*)gPad->WaitPrimitive("Graph","PolyLine");
-	int n = pts->GetN(); 
-	while( n < 3)
-	{
-		delete pts;
-		logStrm<<"There must be at least 2 single clicks and 1 double click";
-		pushToLog();
-		pts = (TGraph*)gPad->WaitPrimitive("Graph","PolyLine");
-		n = pts->GetN(); 
-	}
+	numPeaks = numPeaksGetter->GetIntNumber();
 	
-	numPeaks = n-2;
-		
 	//now construct the fit function
 	int paramCounter = 0;
 	ostringstream formulaBuilder;
@@ -855,112 +903,139 @@ void CalWindow::getFitParams()
 		formulaBuilder<<"pol"<<currBGOrder<<"("<<paramCounter<<")";
 	}
 	string formula = formulaBuilder.str();
-	//logStrm<<formula;
-	//pushToLog();
-	if(frm != NULL)
-	{
-		delete frm;
-		frm = NULL;
-	}
-	double* xVals = pts->GetX();
-	fitMin = xVals[0];
-	fitMax = xVals[n-1];
-	frm = new TF1("peakFit",formula.c_str(),fitMin,fitMax);
-	double hAtLoEdge = cutSpec->GetBinContent(cutSpec->FindBin(fitMin));
-	double hAtHiEdge = cutSpec->GetBinContent(cutSpec->FindBin(fitMax));
-	double cTerm = 0.0;
-	double sTerm = 0.0;
-
-	//now get some guesses for initial parameters of the polynomial (if necessary)
-	if( currBGOrder!=-1)
-	{
-		double cMin = 0.0;
-		double cMax = ( (hAtHiEdge>hAtLoEdge) ? hAtHiEdge : hAtLoEdge );
-		if(currBGOrder==0)
-		{
-			cTerm = ((hAtLoEdge+hAtHiEdge)/2.0);
-			frm->SetParameter(paramCounter,cTerm);
-			frm->SetParLimits(paramCounter, cMin, cMax);		
-		}
-		else if(currBGOrder>=1)
-		{
-			cTerm = (((hAtLoEdge*fitMax)-(hAtHiEdge*fitMin))/(fitMax-fitMin));
-			sTerm = ((hAtHiEdge-hAtLoEdge)/(fitMax-fitMin));
-			frm->SetParameter(paramCounter,cTerm);
-			frm->SetParLimits(paramCounter, cMin, cMax);
-			frm->SetParameter(paramCounter+1,sTerm);
-		}
-		if(currBGOrder>1)
-		{
-			for(int i=2; i<=currBGOrder; ++i)
-			{
-				frm->SetParameter(paramCounter+i,0.0);
-			}
-		}
-	}
-	//now get guesses for the peak heights, widths, and centers of the gaussians
-	for(int i=1; i<=numPeaks; ++i)
-	{
-		double position = xVals[i];
-		double height = (cutSpec->GetBinContent(cutSpec->FindBin(position))-cTerm-sTerm*position);
-		double width = 5.5;
-		int startInd = 3*(i-1);
-		frm->SetParameter(startInd,height);
-		frm->SetParameter(startInd+1,position);
-		frm->SetParameter(startInd+2,width);
-	}
-	//now draw the formula with the initial guesses
-	frm->Draw("same");	
-	//now seperate the gaussian and bg components and draw both
-	sepFitAndDraw();
-	logStrm<<"Initial Estimates Shown:\n Red is the total function. Blue are the Peaks. Black is the polynomial background.\n";
-	logStrm<<"In the initial guess, only the slope and intercept have non-zero values, the quadratic and cubic terms are 0.0\n";
-	pushToLog();
-	delete pts;
+	
+	fitDiag->SetFunction(formula.c_str());
 }
 
-void CalWindow::sepFitAndDraw()
+void CalWindow::getFitData()
 {
-	if(pks != NULL)
+	if(!checkUpToStates())
+	{return;}
+	TList* funcList = fitDiag->GetListOfFittingFunctions();
+	TF1* fit = reinterpret_cast<TF1*>(funcList->Last());
+	//read the fit data
+	double* values = fit->GetParameters();
+	//clear the temp fit combobox
+	int maxID = tempFitBox->GetNumberOfEntries();
+	tempFitBox->RemoveEntries(1,maxID-1);
+	for(int i=0; i<numPeaks; ++i)
 	{
-		delete pks;
-		pks = NULL;
+		tempFits[i].height = values[3*i+0];
+		tempFits[i].centroid = values[3*i+1];
+		tempFits[i].width = values[3*i+2];
+		ostringstream namer;
+		namer<<"Cent: "<<tempFits[i].centroid;
+		tempFitBox->AddEntry(namer.str().c_str(),i+1);
 	}
-	if( bg != NULL)
+	
+}
+
+void CalWindow::transferFit()
+{
+	if(!checkUpToStates())
+	{return;}
+	int id = tempFitBox->GetSelected();
+	if(id==0)
 	{
-		delete bg;
-		bg = NULL;
+		logStrm<<"No Fit Selected";
+		pushToLog();
+		return;
 	}
-	cout<<"In sep and draw"<<endl;
-	double* allParams = frm->GetParameters();
-	//set up the peaks function
-	ostringstream formulaBuilder;
-	int paramCounter;
-	//add a gaussian for each peak
-	for(int j=0; j<numPeaks; ++j)
+	if(numFits==numStates)
 	{
-		formulaBuilder<<"gaus("<<paramCounter<<")";
-		if( j!=(numPeaks-1))
+		cout<<"Too Many fits cannot add more until one is removed"<<endl;
+		return;
+	}
+	ostringstream namer;
+	namer<<tempFits[id-1].centroid<<"  unas";
+	fitList[numFits]=tempFits[id-1];
+	int maxID = fitBox->GetNumberOfEntries();
+	fitBox->AddEntry(namer.str().c_str(),maxID);
+	tempFitBox->RemoveEntry(id);
+	tempFitBox->Select(0);
+	++numFits;
+}
+
+
+void CalWindow::removeFit()
+{
+	if(!checkUpToStates())
+	{return;}
+	int id = fitBox->GetSelected();
+	if(id==0)
+	{
+		logStrm<<"No Fit Selected";
+		pushToLog();
+		return;
+	}
+	int ind = id-1;
+	int maxID = fitBox->GetNumberOfEntries();
+	fitBox->RemoveEntries(id,maxId);
+	for( int i=ind; i<numFits; ++i)
+	{
+		fitList[i]=fitList[i+1];
+		ostringstream namer;
+		namer<<fitList[i].centroid<<"  unas";
+		fitBox->AddEntry(namer.str().c_str(),i+1);
+	}
+	--numFits;
+	for(int i=0; i<numStates; ++i)
+	{
+		if(states[i].fitIndex==ind)
 		{
-			formulaBuilder<<" + ";
+			states[i].fitIndex=-1;
 		}
-		paramCounter+=3;
+		if(states[i].fitIndex>ind)
+		{
+			--(states[i].fitIndex);
+		}
 	}
-	string formula = formulaBuilder.str();
-	cout<<formula<<endl;
-	pks = new TF1("peaksOnly",formula.c_str(),fitMin,fitMax);
-	formulaBuilder.str("");
-	formulaBuilder.clear();
-	formulaBuilder<<"pol"<<currBGOrder<<"(0)";
-	string formula = formulaBuilder.str();
-	cout<<formula<<endl;
-	bg = new TF1("bgOnly",formula.c_str(),fitMin, fitMax);
-	pks->SetLineColor(4);
-	pks->SetParameters(allParams);
-	bg->SetLineColor(1);
-	bg->SetParameters(&(allParams[3*numPeaks]));
-	pks->Draw("same");
-	bg->Draw("same");
+}
+
+	//TGComboBox* tempFitBox;
+	//TGComboBox* fitBox;
+	//TGComboBox* stateBox;
+
+void CalWindow::assignFitToState()
+{
+	if(!checkUpToStates())
+	{return;}
+	int fitId = fitBox->GetSelected();
+	if(fitId==0)
+	{
+		logStrm<<"No Fit Selected";
+		pushToLog();
+		return;
+	}
+	int stateId = stateBox->GetSelected();
+	if(stateId==0)
+	{
+		logStrm<<"No State Selected";
+		pushToLog();
+		return;
+	}
+	
+	ostringstream namer;
+	namer<<"En: "<<(states[stateId-1].en/1000.0)<<" Assigned";
+	states[stateId-1].fitIndex=(fitId-1);
+	stateBox->RemoveEntry(stateId);
+	stateBox->AddEntry(namer.str().c_str(),stateId);
+	
+	
+	namer.str("");
+	namer.clear();
+	namer<<fitList[fitId-1].centroid<<"  Assigned";
+	fitBox->RemoveEntry(fitId);
+	fitBox->AddEntry(namer.str().c_str(),fitId);
+	
+	
+}
+
+void CalWindow::unassignFitFromState()
+{
+	if(!checkUpToStates())
+	{return;}
+	
 }
 
 /******************************************
@@ -1020,23 +1095,7 @@ void CalWindow::resetToStart()
 		states = NULL;
 		numStates=0;
 	}
-	if(frm != NULL)
-	{
-		delete frm;
-		frm = NULL;
-	}
-	if(pks != NULL)
-	{
-		delete pks;
-		pks = NULL;
-	}
-	if( bg != NULL)
-	{
-		delete bg;
-		bg = NULL;
-	}
 	clearLog();
-	
 	dispNum = 0;
 	logStrm<<"Reset to initial state";
 	pushToLog();
@@ -1104,6 +1163,22 @@ void CalWindow::displaySubSpec(const UpdateCallType& tp)
 	cutSpec->Draw();
 	sclToggle=true;
 	gPad->SetLogy(1);
+	
+	if(fitDiag==NULL)
+	{
+		TPluginHandler *handler = gROOT->GetPluginManager()->FindHandler("TFitEditor");
+		if (handler && handler->LoadPlugin() != -1)
+		{
+			fitDiag = reinterpret_cast<TFitEditor*>(handler->ExecPlugin(2, whiteBoard->GetCanvas(), cutSpec));
+			if ( fitDiag == NULL){Error("FitPanel", "Unable to create the FitPanel");}
+		}
+		else{Error("FitPanel", "Unable to find the FitPanel plug-in");}
+	}
+	else
+	{
+		fitDiag->SetFitObject(dynamic_cast<TVirtualPad*>(whiteBoard->GetCanvas()), dynamic_cast<TObject*>(cutSpec), kButton1Down);
+	}
+	
 	whiteBoard->Update();
 	doScatteringCalcs();
 }
@@ -1112,6 +1187,8 @@ void CalWindow::displaySubSpec(const UpdateCallType& tp)
 
 void CalWindow::prevSeqSpec()
 {
+	if(!checkUpToStates())
+	{return;}
 	if(dispNum == 0)
 	{
 		logStrm<<"No previous run to display";
@@ -1128,6 +1205,8 @@ void CalWindow::prevSeqSpec()
 
 void CalWindow::nextSeqSpec()
 {
+	if(!checkUpToStates())
+	{return;}
 	if(dispNum == (numRuns -1))
 	{
 		logStrm<<"No next run to display";
@@ -1144,6 +1223,8 @@ void CalWindow::nextSeqSpec()
 
 void CalWindow::toggleSpec()
 {
+	if(!checkUpToStates())
+	{return;}
 	if(sclToggle)
 	{
 		sclToggle=false;
@@ -1194,10 +1275,10 @@ void CalWindow::doScatteringCalcs()
 	//the solution is obtained via the quadratic equation thus the numerator and denomenator logic coming up
 	double denom = 8*(pE*pE + 2*pE*tM + tM*tM - ppctSqr);
 	
-	logStrm<<"Run: "<<runs[dispNum].runNumber<<"  Angle: "<<(th*180.0/3.1415926)<<" deg   Degraded Beam Energy: "<<pKE;
+	logStrm<<"Run: "<<runs[dispNum].runNumber<<"  Angle: "<<(th*180.0/3.1415926)<<" deg   Degraded Beam Energy: "<<pKE<<"\n";
 	pushToLog();
-	logStrm<<"Excitation En (MeV)| Scattering KE | Focal Plane KE | Focal Plane Momentum";
-	pushToLog();
+	//logStrm<<"Excitation En (MeV)| Scattering KE | Focal Plane KE | Focal Plane Momentum";
+	//pushToLog();
 	for(int i=0; i<numStates; ++i)
 	{
 		//get the residual 'mass'
@@ -1231,8 +1312,8 @@ void CalWindow::doScatteringCalcs()
 		//now into a momentum
 		double fpMom = TMath::Sqrt(fpEn*fpEn-pM*pM);
 		states[i].fpMom = fpMom;
-		logStrm<<(states[i].en/1000.0)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom;
-		pushToLog();
+		//logStrm<<(states[i].en/1000.0)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom;
+		//pushToLog();
 	}
 }
 
@@ -1778,6 +1859,21 @@ bool CalWindow::checkUpToInterpFile()
 	else if( interp == NULL )
 	{
 		logStrm<<"\nLoad an interp file first";
+		pushToLog();
+		return false;
+	}
+	return true;
+}
+
+bool CalWindow::checkUpToStates()
+{
+	if( !checkUpToInterpFile() )
+	{
+		return false;
+	}
+	else if( states == NULL )
+	{
+		logStrm<<"\nLoad a states file first";
 		pushToLog();
 		return false;
 	}

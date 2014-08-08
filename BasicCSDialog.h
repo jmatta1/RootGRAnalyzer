@@ -10,6 +10,7 @@ using std::ostringstream;
 #include<TGLabel.h>
 #include<TGNumberEntry.h>
 #include<TG3DLine.h>
+#include<RQ_OBJECT.h>
 
 struct CSBounds
 {
