@@ -1312,8 +1312,8 @@ void CalWindow::doScatteringCalcs()
 		//now into a momentum
 		double fpMom = TMath::Sqrt(fpEn*fpEn-pM*pM);
 		states[i].fpMom = fpMom;
-		//logStrm<<(states[i].en/1000.0)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom;
-		//pushToLog();
+		logStrm<<(states[i].en/1000.0)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom;
+		pushToLog();
 	}
 }
 
