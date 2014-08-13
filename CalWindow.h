@@ -45,6 +45,8 @@ using std::ios_base;
 #include<TGSplitter.h>
 #include<TGNumberEntry.h>
 #include<TMath.h>
+#include<TGTab.h>
+#include<TGComboBox.h>
 #include<TApplication.h>
 #include<TFitEditor.h>
 #include<TROOT.h>
@@ -54,7 +56,9 @@ using std::ios_base;
 //my includes
 #include"bicubicinterp.h"
 #include"guiSupport.h"
-//#include"paramChangeDialog.h"
+
+//TODO, handle passing between runs for the calibration infor and the like
+//TODO, modify the widths of the text entries
 
 enum UpdateCallType{ Initial, Normal, Final};
 enum WidgetNumberings{ PolOrderEntry = 0};
@@ -74,9 +78,8 @@ public:
 	
 	//calibration control
 	void transferFit();
-	void removeFit();
-	void assignFitToState();
-	void unassignFitFromState();
+	void assignFitToState(int stNum){cout<<"Assigned state number: "<<stNum<<endl;}
+	void unAssignFitToState(int stNum){cout<<"Unassigned state number: "<<stNum<<endl;}
 	
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -110,6 +113,9 @@ private:
 	bool checkUpToStates();
 	bool checkForFitStart();
 	void doScatteringCalcs();
+	void doScatteringCalcOnState(int i);
+	void updateStateInfo();
+	void generateStateInfo();
 	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
@@ -214,6 +220,29 @@ private:
 	TGHorizontalFrame* orderFrame;//holds the polynomial order getter stuff
 	TGHorizontalFrame* numPksFrame;//holds the polynomial order getter stuff
 	
+	//tab system for going back and forth between canvas and state info
+	TGTab *tabFrame;
+	//frames for holding the components of tabs
+	TGCompositeFrame* whiteBoardCon;
+	TGCompositeFrame* stateDataCon;
+	//stuff for the state info tab
+	TGCanvas* stateCan;//canvas for the state information
+	TGCompositeFrame* stateCanCon;//container for the state information canvas
+	TGLayoutHints* colLayout;//layout to apply to the columns
+	TGLayoutHints* cellLayout;//layout to apply to the cells in the columns
+	TGHorizontalFrame* stateHoriz;//organizer that holds the columns
+	TGVerticalFrame* stateVert[9];//organizers that hold the cells
+	TGLabel* colLabels[9];//column labels
+	TGTextEntry** exEntry;//excitation energy holders
+	TGTextEntry** fpmEntry;//calculated focal plane momenta
+	TGTextEntry** calfpmEntry;//focal plain momenta from calibration
+	TGTextEntry** calxfpEntry;//xfp from calculated focal plane momentum
+	TGTextEntry** aFitEntry;//assigned fit centroids
+	TGTextEntry** difEntry;//difference between assigned fit centroid and calculated centroid
+	TGComboBox** fitBox;//combo boxes for holding unassigned fits
+	TGTextButton** assignButtons;//buttons to assign a selected fit to a state
+	TGTextButton** unAssignButtons;//buttons to unassign a fit from a state
+	
 	//the message container for the window to try and make things so we do not need the terminal at all.
 	TGTextView* messageLog;
 	
@@ -237,11 +266,7 @@ private:
 	TGTextButton* getFit;
 	TGComboBox* tempFitBox;
 	TGTextButton* useFit;
-	TGComboBox* fitBox;
-	TGTextButton* delFit;
-	TGComboBox* stateBox;
-	TGTextButton* assignFit;
-	TGTextButton* unassignFit;
+	//TGComboBox* fitBox;
 	//sequential display buttons
 	TGTextButton *prevSpec;
 	TGTextButton *nextSpec;
@@ -356,41 +381,54 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	useFit = new TGTextButton(sideBarFrame,"Use Fit");
 	useFit->Connect("Clicked()","CalWindow",this,"transferFit()");
 	sideBarFrame->AddFrame(useFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	//add the combo box that holds the long term fits
-	fitBox = new TGComboBox(sideBarFrame);
-	fitBox->AddEntry("Stored Fits",0);
-	fitBox->Select(0);
-	fitBox->Resize(100,20);
-	sideBarFrame->AddFrame(fitBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	delFit = new TGTextButton(sideBarFrame,"Remove Fit");
-	delFit->Connect("Clicked()","CalWindow",this,"removeFit()");
-	sideBarFrame->AddFrame(delFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	assignFit = new TGTextButton(sideBarFrame,"Assign Fit");
-	assignFit->Connect("Clicked()","CalWindow",this,"assignFitToState()");
-	sideBarFrame->AddFrame(assignFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	//add the combo box that holds the state information
-	stateBox = new TGComboBox(sideBarFrame);
-	stateBox->AddEntry("States",0);
-	stateBox->Select(0);
-	stateBox->Resize(100,20);
-	sideBarFrame->AddFrame(stateBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	unassignFit = new TGTextButton(sideBarFrame,"Unassign Fit");
-	unassignFit->Connect("Clicked()","CalWindow",this,"unassignFitFromState()");
-	sideBarFrame->AddFrame(unassignFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	
 	
 	//add the sidebar to the canvas frame
 	canvasFrame->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY, 2,2,2,2) );
 	
 	/******************************************
+	** Tabbed Object Creation
+	******************************************/
+	tabFrame =  new TGTab(canvasFrame, 10, 10);
+	whiteBoardCon = new TGCompositeFrame(tabFrame, 10, 10);
+	stateDataCon = new TGCompositeFrame(tabFrame, 10, 10);
+	tabFrame->AddTab("Histogram", whiteBoardCon);
+	tabFrame->AddTab("Calibration", stateDataCon);
+	/******************************************
 	** Canvas Creation
 	******************************************/
 	//create the embedded canvas
-	canvas = new TRootEmbeddedCanvas("canvas",canvasFrame, 200, 200);
+	canvas = new TRootEmbeddedCanvas("canvas",whiteBoardCon, 200, 200);
 	whiteBoard = canvas->GetCanvas();
 	whiteBoard->SetTitle("Whiteboard For Analysis");
 	gStyle->SetOptStat(0);
 	//add the canvas to its frame
-	canvasFrame->AddFrame(canvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY , 2,2,2,2) );
+	whiteBoardCon->AddFrame(canvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY , 2,2,2,2) );
+	/******************************************
+	** State info creation / initial setup
+	******************************************/
+	stateCan = new TGCanvas(stateDataCon, 10, 10);
+	stateCanCon = new TGCompositeFrame(stateCan->GetViewPort(),50,50);
+	stateCanCon->SetCleanup(kDeepCleanup);
+	stateCan->GetViewPort()->SetCleanup(kDeepCleanup);
+	stateCan->SetContainer(stateCanCon);
+	
+	colLayout = new TGLayoutHints(kLHintsTop | kLHintsExpandX, 1, 1, 1, 0);
+	cellLayout = new TGLayoutHints(kLHintsTop | kLHintsExpandX, 1, 1, 1, 1);
+	
+	stateHoriz = new TGHorizontalFrame(stateCanCon);
+	for(int i=0; i<9; ++i)
+	{
+		stateVert[i] = new TGVerticalFrame(stateHoriz, 10, 10);
+		colLabels[i] = new TGLabel(stateVert[i], calColNames[i]);
+		stateVert[i]->AddFrame(colLabels[i], new TGLayoutHints(kLHintsTop | kLHintsCenterX, 1, 1, 1, 0));
+		stateHoriz->AddFrame(stateVert[i], colLayout);
+	}
+	
+	stateCanCon->AddFrame(stateHoriz, cellLayout);
+	
+	stateDataCon->AddFrame(stateCan, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY,2,2,2,2));
+	canvasFrame->AddFrame(tabFrame, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY , 2,2,2,2) );
 	
 	/******************************************
 	** File operations
@@ -853,19 +891,141 @@ void CalWindow::readStateData()
 		conv.str(line);
 		states[count].index = count;
 		conv>>(states[count].en);
-		ostringstream namer;
-		namer<<"En: "<<(states[count].en/1000.0)<<" Unas.";
-		stateBox->AddEntry(namer.str().c_str(),count+1);
-		states[count].fitIndex = -1;
+		states[count].en/=1000.0;
 		getline(input, line);
 		++count;
 	}
 	logStrm<<"\nState data has been loaded";
 	pushToLog();
+	
+	//generate state window
+	generateStateInfo();
+	//display the spectrum
 	displaySubSpec(Initial);
 }
 
-//	TGNumberEntry* numPeaksGetter;//used for getting the order of the polynomial background
+/******************************************
+*******************************************
+** calibration / state window operations
+*******************************************
+******************************************/
+/*
+TGVerticalFrame* stateVert[9];//organizers that hold the cells
+TGTextEntry** exEntry;//excitation energy holders
+TGTextEntry** fpmEntry;//calculated focal plane momenta
+TGTextEntry** calxfpEntry;//xfp from calculated focal plane momentum
+TGTextEntry** aFitEntry;//assigned fit centroids
+TGTextEntry** calfpmEntry;//focal plain momenta from calibration
+TGTextEntry** difEntry;//difference between assigned fit centroid and calculated centroid
+TGComboBox** fitBox;//combo boxes for holding unassigned fits
+TGTextButton** assignButtons;//buttons to assign a selected fit to a state
+TGTextButton** unAssignButtons;//buttons to unassign a fit from a state
+*/
+void CalWindow::generateStateInfo()
+{
+	/*for(int i=0; i<numStates; ++i)
+	{
+		cout<<i<<" | "<<(states[i].en)<<" | "<<(states[i].scatEn)<<" | "<<states[i].fpMom<<endl;
+	}*/
+	//make the arrays
+	exEntry = new TGTextEntry*[numStates];
+	fpmEntry = new TGTextEntry*[numStates];
+	calxfpEntry = new TGTextEntry*[numStates];
+	aFitEntry = new TGTextEntry*[numStates];
+	calfpmEntry = new TGTextEntry*[numStates];
+	difEntry = new TGTextEntry*[numStates];
+	fitBox = new TGComboBox*[numStates];
+	assignButtons = new TGTextButton*[numStates];
+	unAssignButtons = new TGTextButton*[numStates];
+
+	//create the individual pieces
+	for(int i=0; i<numStates; ++i)
+	{
+		exEntry[i] = new TGTextEntry(stateVert[0]);
+		exEntry[i]->SetEnabled(false);
+		stateVert[0]->AddFrame(exEntry[i], cellLayout);
+		
+		fpmEntry[i] = new TGTextEntry(stateVert[1]);
+		fpmEntry[i]->SetEnabled(false);
+		stateVert[1]->AddFrame(fpmEntry[i], cellLayout);
+		
+		calxfpEntry[i] = new TGTextEntry(stateVert[2]);
+		calxfpEntry[i]->SetEnabled(false);
+		stateVert[2]->AddFrame(calxfpEntry[i], cellLayout);
+		
+		aFitEntry[i] = new TGTextEntry(stateVert[3]);
+		aFitEntry[i]->SetEnabled(false);
+		stateVert[3]->AddFrame(aFitEntry[i], cellLayout);
+		
+		calfpmEntry[i] = new TGTextEntry(stateVert[4]);
+		calfpmEntry[i]->SetEnabled(false);
+		stateVert[4]->AddFrame(calfpmEntry[i], cellLayout);
+		
+		difEntry[i] = new TGTextEntry(stateVert[5]);
+		difEntry[i]->SetEnabled(false);
+		stateVert[5]->AddFrame(difEntry[i], cellLayout);
+		
+		fitBox[i] = new TGComboBox(stateVert[6]);
+		fitBox[i]->AddEntry("Poss. Fits",0);
+		fitBox[i]->Select(0);
+		fitBox[i]->Resize(100,22);
+		stateVert[6]->AddFrame(fitBox[i], cellLayout);
+		
+		ostringstream connection;
+		connection<<"assignFitToState(="<<i<<")";
+		assignButtons[i] = new TGTextButton(stateVert[7],"Assign");
+		assignButtons[i]->Connect("Clicked()","CalWindow",this,connection.str().c_str());
+		stateVert[7]->AddFrame(assignButtons[i], cellLayout);
+		
+		connection.str("");
+		connection.clear();
+		connection<<"unAssignFitToState(="<<i<<")";
+		unAssignButtons[i] = new TGTextButton(stateVert[8],"Unassign");
+		unAssignButtons[i]->Connect("Clicked()","CalWindow",this,connection.str().c_str());
+		stateVert[8]->AddFrame(unAssignButtons[i], cellLayout);
+	}
+	
+	mainWindow->MapSubwindows();
+	mainWindow->MapWindow();
+	mainWindow->Layout();
+
+}
+
+void CalWindow::updateStateInfo()
+{
+	ostringstream cell;
+	//first iterate through the state list and put in the excitation energies and focal plane momenta
+	for(int i=0; i<numStates; ++i)
+	{
+		cell.str("");
+		cell.clear();
+		cell<<states[i].en<<" MeV";
+		exEntry[i]->SetText(cell.str().c_str());
+		exEntry[i]->Resize(100,0);
+		
+		cell.str("");
+		cell.clear();
+		cell<<states[i].fpMom<<" MeV/c";
+		fpmEntry[i]->SetText(cell.str().c_str());
+		fpmEntry[i]->Resize(100,0);
+		//cout<<i<<" | "<<states[i].en<<" | "<<states[i].fpMom<<endl;
+	}
+	
+	/*for(int i=0; i<numStates; ++i)
+	{
+		cout<<i<<" | "<<(states[i].en)<<" | "<<(states[i].scatEn)<<" | "<<states[i].fpMom<<endl;
+	}*/
+	
+	//now check if there is a calibration fit and fill the necessary cells
+	
+	//now check if there are assigned states and fill the necessary cells
+		//if there is a calibration fit, fill in the extra cells needed
+	
+	mainWindow->MapSubwindows();
+	mainWindow->MapWindow();
+	mainWindow->Layout();
+}
+
 /******************************************
 *******************************************
 ** Fit operations
@@ -946,96 +1106,6 @@ void CalWindow::transferFit()
 		cout<<"Too Many fits cannot add more until one is removed"<<endl;
 		return;
 	}
-	ostringstream namer;
-	namer<<tempFits[id-1].centroid<<"  unas";
-	fitList[numFits]=tempFits[id-1];
-	int maxID = fitBox->GetNumberOfEntries();
-	fitBox->AddEntry(namer.str().c_str(),maxID);
-	tempFitBox->RemoveEntry(id);
-	tempFitBox->Select(0);
-	++numFits;
-}
-
-
-void CalWindow::removeFit()
-{
-	if(!checkUpToStates())
-	{return;}
-	int id = fitBox->GetSelected();
-	if(id==0)
-	{
-		logStrm<<"No Fit Selected";
-		pushToLog();
-		return;
-	}
-	int ind = id-1;
-	int maxID = fitBox->GetNumberOfEntries();
-	fitBox->RemoveEntries(id,maxId);
-	for( int i=ind; i<numFits; ++i)
-	{
-		fitList[i]=fitList[i+1];
-		ostringstream namer;
-		namer<<fitList[i].centroid<<"  unas";
-		fitBox->AddEntry(namer.str().c_str(),i+1);
-	}
-	--numFits;
-	for(int i=0; i<numStates; ++i)
-	{
-		if(states[i].fitIndex==ind)
-		{
-			states[i].fitIndex=-1;
-		}
-		if(states[i].fitIndex>ind)
-		{
-			--(states[i].fitIndex);
-		}
-	}
-}
-
-	//TGComboBox* tempFitBox;
-	//TGComboBox* fitBox;
-	//TGComboBox* stateBox;
-
-void CalWindow::assignFitToState()
-{
-	if(!checkUpToStates())
-	{return;}
-	int fitId = fitBox->GetSelected();
-	if(fitId==0)
-	{
-		logStrm<<"No Fit Selected";
-		pushToLog();
-		return;
-	}
-	int stateId = stateBox->GetSelected();
-	if(stateId==0)
-	{
-		logStrm<<"No State Selected";
-		pushToLog();
-		return;
-	}
-	
-	ostringstream namer;
-	namer<<"En: "<<(states[stateId-1].en/1000.0)<<" Assigned";
-	states[stateId-1].fitIndex=(fitId-1);
-	stateBox->RemoveEntry(stateId);
-	stateBox->AddEntry(namer.str().c_str(),stateId);
-	
-	
-	namer.str("");
-	namer.clear();
-	namer<<fitList[fitId-1].centroid<<"  Assigned";
-	fitBox->RemoveEntry(fitId);
-	fitBox->AddEntry(namer.str().c_str(),fitId);
-	
-	
-}
-
-void CalWindow::unassignFitFromState()
-{
-	if(!checkUpToStates())
-	{return;}
-	
 }
 
 /******************************************
@@ -1180,7 +1250,12 @@ void CalWindow::displaySubSpec(const UpdateCallType& tp)
 	}
 	
 	whiteBoard->Update();
+	
+	//TODO, handle passing between runs
+	
+	//update the state information
 	doScatteringCalcs();
+	updateStateInfo();
 }
 
 
@@ -1274,7 +1349,6 @@ void CalWindow::doScatteringCalcs()
 	double trav = (ht/cosTh);
 	//the solution is obtained via the quadratic equation thus the numerator and denomenator logic coming up
 	double denom = 8*(pE*pE + 2*pE*tM + tM*tM - ppctSqr);
-	
 	logStrm<<"Run: "<<runs[dispNum].runNumber<<"  Angle: "<<(th*180.0/3.1415926)<<" deg   Degraded Beam Energy: "<<pKE<<"\n";
 	pushToLog();
 	//logStrm<<"Excitation En (MeV)| Scattering KE | Focal Plane KE | Focal Plane Momentum";
@@ -1282,7 +1356,7 @@ void CalWindow::doScatteringCalcs()
 	for(int i=0; i<numStates; ++i)
 	{
 		//get the residual 'mass'
-		double rM = tM + (states[i].en/1000.0);
+		double rM = tM + states[i].en;
 		//cout<<pM<<"  "<<pE<<"  "<<bE<<"  "<<pKE<<"  "<<tM<<"  "<<rM<<endl;
 		//first calculate a repeated term
 		double exTerm = (rM*rM - cTerm);
@@ -1304,7 +1378,7 @@ void CalWindow::doScatteringCalcs()
 		double scatKEn = ((numer/denom) - pM);
 		//caclulate the scattered kinetic energy
 		states[i].scatEn = scatKEn;
-		
+	
 		//calculate the energy after passing through the foil
 		double fpKE = interp->getVal(trav, scatKEn);
 		//now translate that into a total energy
@@ -1312,9 +1386,78 @@ void CalWindow::doScatteringCalcs()
 		//now into a momentum
 		double fpMom = TMath::Sqrt(fpEn*fpEn-pM*pM);
 		states[i].fpMom = fpMom;
-		logStrm<<(states[i].en/1000.0)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom;
-		pushToLog();
+		//logStrm<<(states[i].en)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom<<" | "<<states[i].fpMom;
+		//pushToLog();
 	}
+}
+
+void CalWindow::doScatteringCalcOnState(int i)
+{
+	double amuToMev = 931.4948236727373;
+	//first get the angle
+	double th = runs[dispNum].angle*3.1415926/180.0;
+	//and the beam energy
+	double bE = runs[dispNum].beamEn;
+	//and the target half thickness
+	double ht = runs[dispNum].thickness/2.0;
+	//and the projectile's mass (converted to MeV/c^2)
+	double pM = runs[dispNum].projMass*amuToMev;
+	//and the target mass (converted to MeV/c^2)
+	double tM = runs[dispNum].targetMass*amuToMev;
+	
+	//get the projectile energy on scattering
+	double pKE = interp->getVal(ht, bE);
+	//now calculate the total projectile energy
+	double pE = pKE + pM;
+	//now calculate the projectile momentum*c
+	double pP = TMath::Sqrt( pE*pE - pM*pM );
+	//calculate the constant term of the formula to be solved
+	double cTerm = (2*pM*pM + tM*tM + 2*tM*pE);
+	//now calculate the cosine of the angle
+	double cosTh = TMath::Cos(th);
+	double ppctSqr = pP*cosTh*pP*cosTh;
+	//now calculate the thickness traversed
+	double trav = (ht/cosTh);
+	//the solution is obtained via the quadratic equation thus the numerator and denomenator logic coming up
+	double denom = 8*(pE*pE + 2*pE*tM + tM*tM - ppctSqr);
+	
+	//logStrm<<"Run: "<<runs[dispNum].runNumber<<"  Angle: "<<(th*180.0/3.1415926)<<" deg   Degraded Beam Energy: "<<pKE<<"\n";
+	//pushToLog();
+	//logStrm<<"Excitation En (MeV)| Scattering KE | Focal Plane KE | Focal Plane Momentum";
+	//pushToLog();
+	//get the residual 'mass'
+	double rM = tM + states[i].en;
+	//cout<<pM<<"  "<<pE<<"  "<<bE<<"  "<<pKE<<"  "<<tM<<"  "<<rM<<endl;
+	//first calculate a repeated term
+	double exTerm = (rM*rM - cTerm);
+	//cout<<exTerm<<endl;
+	//now start calculating the parts of the sqrt in teh quadratic equation
+	double sqrtTerm1 = (exTerm*exTerm*16*(pE+tM)*(pE+tM));
+	double sqrtTerm2 = (exTerm*exTerm+4*pM*pM*ppctSqr);
+	double sqrtTerm3 = (4*pE*pE+8*pE*tM+4*tM*tM-4*ppctSqr);
+	//now calculate teh components of the numerator
+	double numTerm1 = 4*(pE+tM)*exTerm;
+	//cout<<numTerm1<<endl;
+	double numTerm2 = TMath::Sqrt(sqrtTerm1-(4*sqrtTerm2*sqrtTerm3));
+	//cout<<numTerm2<<endl;
+	//calculate the numerator
+	double numer = (numTerm2-numTerm1);
+	//cout<<numer<<endl;
+	//cout<<denom<<endl;
+	//cout<<(numer/denom)<<endl;
+	double scatKEn = ((numer/denom) - pM);
+	//caclulate the scattered kinetic energy
+	states[i].scatEn = scatKEn;
+	
+	//calculate the energy after passing through the foil
+	double fpKE = interp->getVal(trav, scatKEn);
+	//now translate that into a total energy
+	double fpEn = fpKE + pM;
+	//now into a momentum
+	double fpMom = TMath::Sqrt(fpEn*fpEn-pM*pM);
+	states[i].fpMom = fpMom;
+	//logStrm<<(states[i].en/1000.0)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom<<" | "<<states[i].fpMom;
+	//pushToLog();
 }
 
 void CalWindow::pushToLog()
