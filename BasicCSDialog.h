@@ -86,8 +86,7 @@ private:
 	TGHorizontal3DLine* sep4;
 };
 
-BasicCSDialog::BasicCSDialog(const TGWindow* parent, UInt_t width, UInt_t height):
-		TGTransientFrame(p, main, 10, 10, kVerticalFrame)
+BasicCSDialog::BasicCSDialog(const TGWindow* parent, UInt_t width, UInt_t height)
 {
 	/***************************************
 	****************************************
