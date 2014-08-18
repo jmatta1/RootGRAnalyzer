@@ -19,6 +19,8 @@ const char *calInitMessage="Welcome to the Notre Dame Focal Plane Calibration GU
 const char *calColNames[] = { "Ex", "P_fp", "Calib. Xfp", "Assigned Cent.", "Calib. P_fp",
 											"P_fp Resid", "Fit Selection", "", ""};
 
+const char *calFuncs[] = { "pol1", "pol2" };
+
 struct RunData
 {
 	int runNumber;
@@ -41,7 +43,7 @@ struct FitData
 	double centroid;
 	double width;
 	bool isAssign;
-	FitData& operator=(FitData& rhs){height=rhs.height; centroid=rhs.centroid; width=rhs.width; return *this;}
+	FitData& operator=(FitData& rhs){height=rhs.height; centroid=rhs.centroid; width=rhs.width; isAssign=rhs.isAssign; return *this;}
 };
 
 struct StateFit
