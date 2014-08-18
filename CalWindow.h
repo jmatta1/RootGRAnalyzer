@@ -80,8 +80,11 @@ public:
 	
 	//calibration control
 	void transferFit();
-	void assignFitToState(int stNum){cout<<"Assigned state number: "<<stNum<<endl;}
-	void unAssignFitToState(int stNum){cout<<"Unassigned state number: "<<stNum<<endl;}
+	void removeFit();
+	void assignFitToState(int stNum);
+	void unAssignFitToState(int stNum);
+	void getCalibration();
+	void exportCalibrations();
 	
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -118,6 +121,7 @@ private:
 	void updateStateInfo();
 	void generateStateInfo();
 	float invertCalFunc(int i);
+	void updateComboBoxes();
 	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
@@ -181,7 +185,9 @@ private:
 	StateData** states;
 	bool statesSet;
 	FitData** fitList;
+	int* numFits;
 	StateFit** assigns;
+	int* numAssigned;
 	TF1** calFits;
 	int* calOrd;
 	int numRuns;
@@ -192,7 +198,6 @@ private:
 	BiCubicInterpolation* interp;
 	int currBGOrder;
 	int numPeaks;
-	int numFits;
 
 	//display stuff
 	int dispNum;
@@ -224,7 +229,8 @@ private:
 	TGHorizontalFrame* overallControlFrame;//holds the overall control buttons
 	TGVerticalFrame* messageLogFrame;//frame that only holds the message log, necessary for the resizing trick
 	TGHorizontalFrame* orderFrame;//holds the polynomial order getter stuff
-	TGHorizontalFrame* numPksFrame;//holds the polynomial order getter stuff
+	TGHorizontalFrame* numPksFrame;//holds the number of peaks getter stuff
+	TGHorizontalFrame* calOrderFrame;//holds the calibration order getter stuff
 	
 	//tab system for going back and forth between canvas and state info
 	TGTab *tabFrame;
@@ -263,16 +269,21 @@ private:
 	TGLabel* fitCtrlLabel;
 	TGLabel* orderLabel;
 	TGLabel* numPksLabel;
+	TGLabel* calOrderLabel;
 	TGLabel* calCtrlLabel;
 	
 	//action buttons
 	TGNumberEntry* bgPolOrderGetter;//used for getting the order of the polynomial background
 	TGNumberEntry* numPeaksGetter;//used for getting the number of peaks to fit
+	TGNumberEntry* calOrderGetter;//used for getting the order of the cal function
 	TGTextButton* setFunc;
 	TGTextButton* getFit;
+	TGTextButton* doCal;
 	TGComboBox* tempFitBox;
 	TGTextButton* useFit;
-	//TGComboBox* fitBox;
+	TGComboBox* fitListBox;
+	TGTextButton* rmFit;
+	TGTextButton* exportCal;
 	//sequential display buttons
 	TGTextButton *prevSpec;
 	TGTextButton *nextSpec;
@@ -309,8 +320,9 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	fitDiag=NULL;
 	currBGOrder=0;
 	numPeaks=0;
-	numFits=0;
+	numFits=NULL;
 	statesSet=false;
+	numAssigned=NULL;
 
 	tempFits = new FitData[5];
 
@@ -341,6 +353,7 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	messageLogFrame  = new TGVerticalFrame(organizerFrame,width,height, kChildFrame | kFixedHeight);
 	orderFrame = new TGHorizontalFrame(sideBarFrame, width, height);
 	numPksFrame = new TGHorizontalFrame(sideBarFrame, width, height);
+	calOrderFrame = new TGHorizontalFrame(sideBarFrame, width, height);
 	
 	//create and connect the buttons in the side bar
 	/******************************************
@@ -366,7 +379,6 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//button that gets the fit data from the fit panel
 	getFit = new TGTextButton(sideBarFrame,"Get Fit Data");
 	getFit->Connect("Clicked()","CalWindow",this,"getFitData()");
-
 	//add the sidebar buttons to the sidebar frame
 	sideBarFrame->AddFrame(orderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(numPksFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
@@ -384,11 +396,31 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	tempFitBox->AddEntry("Retrieved Fits",0);
 	tempFitBox->Select(0);
 	tempFitBox->Resize(100,20);
-	sideBarFrame->AddFrame(tempFitBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	useFit = new TGTextButton(sideBarFrame,"Use Fit");
 	useFit->Connect("Clicked()","CalWindow",this,"transferFit()");
-	sideBarFrame->AddFrame(useFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	fitListBox = new TGComboBox(sideBarFrame);
+	fitListBox->AddEntry("Fits",0);
+	fitListBox->Select(0);
+	fitListBox->Resize(100,20);
+	rmFit = new TGTextButton(sideBarFrame,"Remove Fit");
+	rmFit->Connect("Clicked()","CalWindow",this,"removeFit()");
+	calOrderGetter = new TGNumberEntry( calOrderFrame, 1.0, 5, PolOrderEntry, TGNumberFormat::kNESInteger, 
+			TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, 1, 2);
+	calOrderLabel = new TGLabel(calOrderFrame, "Cal Ord");
+	calOrderFrame->AddFrame(calOrderGetter, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
+	calOrderFrame->AddFrame(calOrderLabel, new TGLayoutHints(kLHintsNormal, 5, 5, 3, 4) );
+	doCal = new TGTextButton(sideBarFrame,"Do Calib.");
+	doCal->Connect("Clicked()","CalWindow",this,"getCalibration()");
+	exportCal = new TGTextButton(sideBarFrame,"Export Cals.");
+	exportCal->Connect("Clicked()","CalWindow",this,"exportCalibrations()");
 	
+	sideBarFrame->AddFrame(tempFitBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(useFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(fitListBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(rmFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(calOrderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(doCal, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(exportCal, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//add the sidebar to the canvas frame
 	canvasFrame->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY, 2,2,2,2) );
@@ -591,10 +623,64 @@ CalWindow::~CalWindow()
 	}
 	if(states != NULL)
 	{
+		for(int i=0; i<numRuns; ++i)
+		{
+			if(states[i]!=NULL)
+			{
+				delete[] states[i];
+			}
+		}
 		delete[] states;
 		states = NULL;
 	}
 	
+	if(fitList != NULL)
+	{
+		for(int i=0; i<numRuns; ++i)
+		{
+			if(fitList[i]!=NULL)
+			{
+				delete[] fitList[i];
+			}
+		}
+		delete[] fitList;
+		fitList = NULL;
+	}
+	if(assigns != NULL)
+	{
+		for(int i=0; i<numRuns; ++i)
+		{
+			if(assigns[i]!=NULL)
+			{
+				delete[] assigns[i];
+			}
+		}
+		delete[] assigns;
+		assigns = NULL;
+	}
+	
+	if(calFits != NULL)
+	{
+		for(int i=0; i<numRuns; ++i)
+		{
+			if(calFits[i]!=NULL)
+			{
+				delete[] calFits[i];
+			}
+		}
+		delete[] calFits;
+		calFits = NULL;
+	}
+	if(calOrd != NULL)
+	{
+		delete calOrd;
+		calOrd = NULL;
+	}
+	if(numAssigned != NULL)
+	{
+		delete numAssigned;
+		numAssigned = NULL;
+	}
 	//delete fitDialog;
 	
 	//mainWindow->Cleanup();
@@ -660,6 +746,18 @@ void CalWindow::readRunData()
 	assigns = new StateFit*[numRuns];
 	calFits = new TF1*[numRuns];
 	calOrd = new int[numRuns];
+	numAssigned = new int[numRuns];
+	numFits = new int[numRuns];
+	for(int i =0; i<numRuns; ++i)
+	{
+		states[i] = NULL;
+		fitList[i] = NULL;
+		assigns[i] = NULL;
+		calFits[i] = NULL;
+		calOrd[i] = 0;
+		numAssigned[i] = 0;
+		numFits[i] = 0;
+	}
 	//now read line by line to get the run data
 	getline(input, line);
 	int count = 0;
@@ -667,7 +765,6 @@ void CalWindow::readRunData()
 	{
 		parseRunFileLine(line, (runs[count]) );
 		getline(input, line);
-		calOrd[count]=0;
 		++count;
 	}
 	logStrm<<"\nRun data has been loaded";
@@ -901,7 +998,7 @@ void CalWindow::readStateData()
 		calFits[i] = NULL;
 		for(int j=0; j<numStates; ++j)
 		{
-			fitList[i][j].isAssig = false;
+			fitList[i][j].isAssign = false;
 			assigns[i][j].isSet = false;
 		}
 	}
@@ -1066,7 +1163,8 @@ void CalWindow::updateStateInfo()
 			aFitEntry[i]->SetText(cell.str().c_str());
 			if(calFits[dispNum]!=NULL)
 			{	
-				float calcP = invertCalFunc(i);
+				invertCalFunc(i);
+				float calcP = states[dispNum][i].fpMom;
 				float calP = calFits[dispNum]->Eval(cent);
 				cell.str("");
 				cell.clear();
@@ -1126,20 +1224,209 @@ float CalWindow::invertCalFunc(int i)
 		float c1 = params[0];
 		float b = params[1];
 		float a = params[2];
-		float denom = 2.0*a;
-		float b2 = b*b;
-		float t1 = (((-1.0)*b)/denom);
 		ostringstream cell;
 		float fpMom = states[dispNum][i].fpMom;
 		float c = c1 - fpMom;
-		float srtTerm = TMath::Sqrt( (b2 - (4.0*a*c)) );
-		float position = (t1 + (srtTerm/denom));
+		float srtTerm = TMath::Sqrt( (b*b - (4.0*a*c)) );
+		//cout<<a<<" "<<b<<" "<<c<<" "<<c1<<" "<<srtTerm<<endl;
+		float position;
+		if(a<0)
+		{
+			position = (((-1.0)*b-TMath::Sqrt(b*b-4.0*a*c))/(2.0*a));
+		}
+		else
+		{
+			position = (((-1.0)*b+TMath::Sqrt(b*b-4.0*a*c))/(2.0*a));
+		}
+		/*if(position>1000.0 || -1000.0>position)
+		{
+			position = (((-1.0)*b-TMath::Sqrt(b*b-4.0*a*c))/(2.0*a));
+		}*/
 		cell.str("");
 		cell.clear();
 		cell<<position;
 		calxfpEntry[i]->SetText(cell.str().c_str());
 		return position;
 	}
+}
+
+void CalWindow::updateComboBoxes()
+{
+	//first clear the fit lists and the possible fit lists
+	fitListBox->RemoveEntries(1,numFits[dispNum]+1);
+	fitListBox->Select(0);
+	for(int i=0; i<numStates; ++i)
+	{
+		fitBox[i]->RemoveEntries(1,numFits[dispNum]+1);
+		fitBox[i]->Select(0);
+	}
+	//iterate through fits and add each one to the fit list, then check if the fit is assigned
+	//if the fit is not assigned add the fit to the poss fits combo boxes
+	ostringstream cell;
+	for(int i=0; i<numFits[dispNum]; ++i)
+	{
+		cell.str("");
+		cell.clear();
+		cell<<"Cent: "<<fitList[dispNum][i].centroid;
+		string temp = cell.str();
+		fitListBox->AddEntry(temp.c_str(),i+1);
+		if(!(fitList[dispNum][i].isAssign))
+		{
+			for(int j=0; j<numStates; ++j)
+			{
+				fitBox[j]->AddEntry(temp.c_str(),i+1);
+			}
+		}
+	}
+}
+
+void CalWindow::assignFitToState(int stNum)
+{
+	//first get the state to be assigned from the combo box
+	int id = fitBox[stNum]->GetSelected();
+	if(id==0)
+	{
+		logStrm<<"No Fit Selected To Assign";
+		pushToLog();
+		return;
+	}
+	//check if this state already has an assigned fit
+	if(assigns[dispNum][stNum].isSet)
+	{
+		logStrm<<"State already has an assigned fit, unassign it first"<<endl;
+		pushToLog();
+		return;
+	}
+	int ind = (id-1);
+	//otherwise, set the assignment
+	assigns[dispNum][stNum].isSet = true;
+	assigns[dispNum][stNum].ftInd = ind;
+	fitList[dispNum][ind].isAssign = true;
+	++numAssigned[dispNum];
+	updateStateInfo();
+	updateComboBoxes();
+}
+
+void CalWindow::unAssignFitToState(int stNum)
+{
+	//check if this state does not have an assigned fit
+	if(!(assigns[dispNum][stNum].isSet))
+	{
+		logStrm<<"State does not have an assigned fit to unassign"<<endl;
+		pushToLog();
+		return;
+	}
+	
+	assigns[dispNum][stNum].isSet = false;
+	fitList[dispNum][assigns[dispNum][stNum].ftInd].isAssign = false;
+	--numAssigned[dispNum];
+	updateStateInfo();
+	updateComboBoxes();
+}
+
+void CalWindow::getCalibration()
+{
+	//get the order of polynomial to be used
+	int calPolOrd = calOrderGetter->GetIntNumber();
+	if( numAssigned[dispNum] < (calPolOrd+1) )
+	{
+		logStrm<<"Not enough peaks assigned for calibration of this order"<<endl;
+		pushToLog();
+		return;
+	}
+	//if we can go ahead, first we construct a TGraph
+	float* xVals = new float[numAssigned[dispNum]];
+	float* yVals = new float[numAssigned[dispNum]];
+	int ind =0;
+	for(int i=0; i<numStates; ++i)
+	{
+		if(assigns[dispNum][i].isSet)
+		{
+			yVals[ind] = states[dispNum][i].fpMom;
+			xVals[ind] = fitList[dispNum][assigns[dispNum][i].ftInd].centroid;
+			++ind;
+		}
+	}
+	TGraph* temp = new TGraph( numAssigned[dispNum], xVals, yVals);
+	
+	//now check if there is a fit function present if so, delete it
+	if(calFits[dispNum]!=NULL)
+	{
+		delete calFits[dispNum];
+		calFits[dispNum] = NULL;
+	}
+	
+	//now create a new calibration function
+	ostringstream namer;
+	namer<<"run"<<runs[dispNum].runNumber<<"calfunc";
+	calOrd[dispNum] = calPolOrd;
+	calFits[dispNum] = new TF1(namer.str().c_str(),calFuncs[calPolOrd-1],-700,700);
+	
+	temp->Fit(calFits[dispNum], "QFN");
+	calFits[dispNum]->Print();
+	updateStateInfo();
+		
+	delete temp;
+	delete[] xVals;
+	delete[] yVals;
+}
+
+void CalWindow::exportCalibrations()
+{
+	//first check that all runs have calibrations
+	for(int i=0; i < numRuns; ++i)
+	{
+		if(calFits[i]==NULL)
+		{
+			logStrm<<"Not all runs have calibrations"<<endl;
+			pushToLog();
+			return;
+		}
+	}
+	logStrm<<"\nGive the file name to save this calibration data to";
+	pushToLog();
+	static TString directory(".");
+	TGFileInfo fileInfo;
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = csvDataType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	string temp = string(fileInfo.fFilename);
+	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
+	{
+		temp.append(".csv");
+	}
+	directory = fileInfo.fIniDir;
+	
+	//now open the file
+	ofstream output;
+	output.open(temp.c_str());
+	
+	//for( int i=0; i < numRuns; ++i)
+	for( int i=0; i < numRuns; ++i)
+	{
+		double* params = calFits[i]->GetParameters();
+		output<<runs[i].runNumber<<","<<params[0]<<","<<params[1];
+		if(calOrd[i]==2)
+		{
+			output<<","<<params[2];
+		}
+		else
+		{
+			output<<",0.0";
+		}
+		output<<endl;
+	}
+	output.close();
 }
 
 /******************************************
@@ -1192,13 +1479,13 @@ void CalWindow::getFitData()
 	//read the fit data
 	double* values = fit->GetParameters();
 	//clear the temp fit combobox
-	int maxID = tempFitBox->GetNumberOfEntries();
-	tempFitBox->RemoveEntries(1,maxID-1);
+	tempFitBox->RemoveEntries(1,6);
 	for(int i=0; i<numPeaks; ++i)
 	{
 		tempFits[i].height = values[3*i+0];
 		tempFits[i].centroid = values[3*i+1];
 		tempFits[i].width = values[3*i+2];
+		tempFits[i].isAssign = false;
 		ostringstream namer;
 		namer<<"Cent: "<<tempFits[i].centroid;
 		tempFitBox->AddEntry(namer.str().c_str(),i+1);
@@ -1217,11 +1504,47 @@ void CalWindow::transferFit()
 		pushToLog();
 		return;
 	}
-	if(numFits==numStates)
+	if(numFits[dispNum]==numStates)
 	{
 		cout<<"Too Many fits cannot add more until one is removed"<<endl;
 		return;
 	}
+	//other wise, add the fit to the various combo boxes, then update them
+	tempFitBox->Select(0);
+	tempFitBox->RemoveEntry(id);
+	fitList[dispNum][numFits[dispNum]] = tempFits[id-1];
+	++numFits[dispNum];
+	updateComboBoxes();
+}
+
+void CalWindow::removeFit()
+{
+	if(!checkUpToStates())
+	{return;}
+	int id = fitListBox->GetSelected();
+	if(id==0)
+	{
+		logStrm<<"No Fit Selected";
+		pushToLog();
+		return;
+	}
+	
+	int ind = id-1;
+	
+	if(fitList[dispNum][ind].isAssign)
+	{
+		logStrm<<"Cannot Delete an Assigned Fit"<<endl;
+		pushToLog();
+		return;
+	}
+	//other wise, remove the fit from the list, then update the combo boxes
+	--numFits[dispNum];
+	for(int i = ind; i<numFits[dispNum]; ++i)
+	{
+		fitList[dispNum][i] = fitList[dispNum][i+1];
+	}
+	fitList[dispNum][numFits[dispNum]].isAssign = false;
+	updateComboBoxes();
 }
 
 /******************************************
@@ -2063,7 +2386,7 @@ bool CalWindow::checkUpToStates()
 	{
 		return false;
 	}
-	else if( states == NULL )
+	else if( !statesSet )
 	{
 		logStrm<<"\nLoad a states file first";
 		pushToLog();
