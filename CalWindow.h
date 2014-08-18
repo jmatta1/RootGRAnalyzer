@@ -59,6 +59,8 @@ using std::ios_base;
 
 //TODO, handle passing between runs for the calibration infor and the like
 //TODO, modify the widths of the text entries
+//TODO, fix up deconstructor
+//TODO, fix up reset function
 
 enum UpdateCallType{ Initial, Normal, Final};
 enum WidgetNumberings{ PolOrderEntry = 0};
@@ -113,9 +115,9 @@ private:
 	bool checkUpToStates();
 	bool checkForFitStart();
 	void doScatteringCalcs();
-	void doScatteringCalcOnState(int i);
 	void updateStateInfo();
 	void generateStateInfo();
+	float invertCalFunc(int i);
 	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
@@ -175,9 +177,13 @@ private:
 	
 	//analysis stuff
 	RunData* runs;
-	StateData* states;
 	FitData* tempFits;
-	FitData* fitList;
+	StateData** states;
+	bool statesSet;
+	FitData** fitList;
+	StateFit** assigns;
+	TF1** calFits;
+	int* calOrd;
 	int numRuns;
 	int numStates;
 	TFile* mainFile;
@@ -304,6 +310,7 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	currBGOrder=0;
 	numPeaks=0;
 	numFits=0;
+	statesSet=false;
 
 	tempFits = new FitData[5];
 
@@ -648,6 +655,11 @@ void CalWindow::readRunData()
 	input.seekg(0,ios_base::beg);
 	//allocate the runs array
 	runs = new RunData[numRuns];
+	states = new StateData*[numRuns];
+	fitList = new FitData*[numRuns];
+	assigns = new StateFit*[numRuns];
+	calFits = new TF1*[numRuns];
+	calOrd = new int[numRuns];
 	//now read line by line to get the run data
 	getline(input, line);
 	int count = 0;
@@ -655,6 +667,7 @@ void CalWindow::readRunData()
 	{
 		parseRunFileLine(line, (runs[count]) );
 		getline(input, line);
+		calOrd[count]=0;
 		++count;
 	}
 	logStrm<<"\nRun data has been loaded";
@@ -834,12 +847,13 @@ void CalWindow::readStateData()
 {
 	if(!checkUpToInterpFile())
 	{ return; }
-	if (states != NULL)
+	if (statesSet)
 	{
 		logStrm<<"\nState data already loaded, to load new run data, use the reset button";
 		pushToLog();
 		return;
 	}
+	statesSet = true;
 	//get the file name using a file dialog
 	static TString directory(".");
 	TGFileInfo fileInfo;
@@ -879,8 +893,18 @@ void CalWindow::readStateData()
 	input.clear();
 	input.seekg(0,ios_base::beg);
 	//allocate the runs array
-	states = new StateData[numStates];
-	fitList = new FitData[numStates];
+	for(int i=0; i<numRuns; ++i)
+	{
+		states[i] = new StateData[numStates];
+		fitList[i] = new FitData[numStates];
+		assigns[i] = new StateFit[numStates];
+		calFits[i] = NULL;
+		for(int j=0; j<numStates; ++j)
+		{
+			fitList[i][j].isAssig = false;
+			assigns[i][j].isSet = false;
+		}
+	}
 	//now read line by line to get the run data
 	getline(input, line);
 	int count = 0;
@@ -889,15 +913,20 @@ void CalWindow::readStateData()
 	{
 		istringstream conv;
 		conv.str(line);
-		states[count].index = count;
-		conv>>(states[count].en);
-		states[count].en/=1000.0;
+		float temp;
+		conv>>temp;
+		for(int i=0; i<numRuns; ++i)
+		{
+			states[i][count].en = (temp/1000.0);
+		}
 		getline(input, line);
 		++count;
 	}
 	logStrm<<"\nState data has been loaded";
 	pushToLog();
 	
+	//run scattering calcs
+	doScatteringCalcs();
 	//generate state window
 	generateStateInfo();
 	//display the spectrum
@@ -909,18 +938,6 @@ void CalWindow::readStateData()
 ** calibration / state window operations
 *******************************************
 ******************************************/
-/*
-TGVerticalFrame* stateVert[9];//organizers that hold the cells
-TGTextEntry** exEntry;//excitation energy holders
-TGTextEntry** fpmEntry;//calculated focal plane momenta
-TGTextEntry** calxfpEntry;//xfp from calculated focal plane momentum
-TGTextEntry** aFitEntry;//assigned fit centroids
-TGTextEntry** calfpmEntry;//focal plain momenta from calibration
-TGTextEntry** difEntry;//difference between assigned fit centroid and calculated centroid
-TGComboBox** fitBox;//combo boxes for holding unassigned fits
-TGTextButton** assignButtons;//buttons to assign a selected fit to a state
-TGTextButton** unAssignButtons;//buttons to unassign a fit from a state
-*/
 void CalWindow::generateStateInfo()
 {
 	/*for(int i=0; i<numStates; ++i)
@@ -985,45 +1002,144 @@ void CalWindow::generateStateInfo()
 		stateVert[8]->AddFrame(unAssignButtons[i], cellLayout);
 	}
 	
+	//now write in the excitation energies (since that only needs to be done once)
+	ostringstream cell;
+	for(int i=0; i<numStates; ++i)
+	{
+		cell.str("");
+		cell.clear();
+		cell<<states[0][i].en<<" MeV";
+		exEntry[i]->SetText(cell.str().c_str());
+		fpmEntry[i]->Resize(100,0);
+		calxfpEntry[i]->Resize(100,0);
+		aFitEntry[i]->Resize(100,0);
+		calfpmEntry[i]->Resize(100,0);
+		difEntry[i]->Resize(100,0);
+	}
+	
 	mainWindow->MapSubwindows();
 	mainWindow->MapWindow();
 	mainWindow->Layout();
 
 }
 
+/*
+TGVerticalFrame* stateVert[9];//organizers that hold the cells
+TGTextEntry** exEntry;//excitation energy holders
+TGTextEntry** fpmEntry;//calculated focal plane momenta
+TGTextEntry** calxfpEntry;//xfp from calculated focal plane momentum
+TGTextEntry** aFitEntry;//assigned fit centroids
+TGTextEntry** calfpmEntry;//focal plain momenta from calibration
+TGTextEntry** difEntry;//difference between assigned fit centroid and calculated centroid
+TGComboBox** fitBox;//combo boxes for holding unassigned fits
+TGTextButton** assignButtons;//buttons to assign a selected fit to a state
+TGTextButton** unAssignButtons;//buttons to unassign a fit from a state
+*/
+
 void CalWindow::updateStateInfo()
 {
 	ostringstream cell;
-	//first iterate through the state list and put in the excitation energies and focal plane momenta
+	//first iterate through the state list and put in the focal plane momenta for that run
+	for(int i=0; i<numStates; ++i)
+	{	
+		cell.str("");
+		cell.clear();
+		cell<<states[dispNum][i].fpMom<<" MeV/c";
+		fpmEntry[i]->SetText(cell.str().c_str());
+		//cout<<i<<" | "<<states[dispNum][i].en<<" | "<<states[dispNum][i].fpMom<<endl;
+	}
+	/*
+	StateData** states;
+	FitData** fitList;
+	StateFit** assigns;
+	TF1** calFits;
+	*/	
+	//now check if there are assigned states and/or calibration function and fill the necessary cells
 	for(int i=0; i<numStates; ++i)
 	{
-		cell.str("");
-		cell.clear();
-		cell<<states[i].en<<" MeV";
-		exEntry[i]->SetText(cell.str().c_str());
-		exEntry[i]->Resize(100,0);
-		
-		cell.str("");
-		cell.clear();
-		cell<<states[i].fpMom<<" MeV/c";
-		fpmEntry[i]->SetText(cell.str().c_str());
-		fpmEntry[i]->Resize(100,0);
-		//cout<<i<<" | "<<states[i].en<<" | "<<states[i].fpMom<<endl;
+		if(assigns[dispNum][i].isSet)
+		{
+			float cent = fitList[dispNum][assigns[dispNum][i].ftInd].centroid;
+			cell.str("");
+			cell.clear();
+			cell<<cent;
+			aFitEntry[i]->SetText(cell.str().c_str());
+			if(calFits[dispNum]!=NULL)
+			{	
+				float calcP = invertCalFunc(i);
+				float calP = calFits[dispNum]->Eval(cent);
+				cell.str("");
+				cell.clear();
+				cell<<calP;
+				calfpmEntry[i]->SetText(cell.str().c_str());
+				cell.str("");
+				cell.clear();
+				cell<<(calP-calcP);
+				difEntry[i]->SetText(cell.str().c_str());
+			}
+			else
+			{
+				calxfpEntry[i]->SetText("N/A");
+				calfpmEntry[i]->SetText("N/A");
+				difEntry[i]->SetText("N/A");
+			}
+		}
+		else
+		{
+			if(calFits[dispNum]!=NULL)
+			{	
+				invertCalFunc(i);
+			}
+			else
+			{
+				calxfpEntry[i]->SetText("N/A");
+			}
+			aFitEntry[i]->SetText("N/A");
+			calfpmEntry[i]->SetText("N/A");
+			difEntry[i]->SetText("N/A");
+		}
 	}
-	
-	/*for(int i=0; i<numStates; ++i)
-	{
-		cout<<i<<" | "<<(states[i].en)<<" | "<<(states[i].scatEn)<<" | "<<states[i].fpMom<<endl;
-	}*/
-	
-	//now check if there is a calibration fit and fill the necessary cells
-	
-	//now check if there are assigned states and fill the necessary cells
-		//if there is a calibration fit, fill in the extra cells needed
 	
 	mainWindow->MapSubwindows();
 	mainWindow->MapWindow();
 	mainWindow->Layout();
+}
+
+float CalWindow::invertCalFunc(int i)
+{
+	double* params = calFits[dispNum]->GetParameters();
+	if(calOrd[dispNum]==1)
+	{
+		float b = params[0];
+		float m = params[1];
+		ostringstream cell;
+		float fpMom = states[dispNum][i].fpMom;
+		float position = (fpMom-b)/m;
+		cell.str("");
+		cell.clear();
+		cell<<position;
+		calxfpEntry[i]->SetText(cell.str().c_str());
+		return position;
+	}
+	else
+	{
+		float c1 = params[0];
+		float b = params[1];
+		float a = params[2];
+		float denom = 2.0*a;
+		float b2 = b*b;
+		float t1 = (((-1.0)*b)/denom);
+		ostringstream cell;
+		float fpMom = states[dispNum][i].fpMom;
+		float c = c1 - fpMom;
+		float srtTerm = TMath::Sqrt( (b2 - (4.0*a*c)) );
+		float position = (t1 + (srtTerm/denom));
+		cell.str("");
+		cell.clear();
+		cell<<position;
+		calxfpEntry[i]->SetText(cell.str().c_str());
+		return position;
+	}
 }
 
 /******************************************
@@ -1254,7 +1370,6 @@ void CalWindow::displaySubSpec(const UpdateCallType& tp)
 	//TODO, handle passing between runs
 	
 	//update the state information
-	doScatteringCalcs();
 	updateStateInfo();
 }
 
@@ -1323,141 +1438,75 @@ void CalWindow::toggleSpec()
 void CalWindow::doScatteringCalcs()
 {
 	double amuToMev = 931.4948236727373;
-	//first get the angle
-	double th = runs[dispNum].angle*3.1415926/180.0;
-	//and the beam energy
-	double bE = runs[dispNum].beamEn;
-	//and the target half thickness
-	double ht = runs[dispNum].thickness/2.0;
-	//and the projectile's mass (converted to MeV/c^2)
-	double pM = runs[dispNum].projMass*amuToMev;
-	//and the target mass (converted to MeV/c^2)
-	double tM = runs[dispNum].targetMass*amuToMev;
-	
-	//get the projectile energy on scattering
-	double pKE = interp->getVal(ht, bE);
-	//now calculate the total projectile energy
-	double pE = pKE + pM;
-	//now calculate the projectile momentum*c
-	double pP = TMath::Sqrt( pE*pE - pM*pM );
-	//calculate the constant term of the formula to be solved
-	double cTerm = (2*pM*pM + tM*tM + 2*tM*pE);
-	//now calculate the cosine of the angle
-	double cosTh = TMath::Cos(th);
-	double ppctSqr = pP*cosTh*pP*cosTh;
-	//now calculate the thickness traversed
-	double trav = (ht/cosTh);
-	//the solution is obtained via the quadratic equation thus the numerator and denomenator logic coming up
-	double denom = 8*(pE*pE + 2*pE*tM + tM*tM - ppctSqr);
-	logStrm<<"Run: "<<runs[dispNum].runNumber<<"  Angle: "<<(th*180.0/3.1415926)<<" deg   Degraded Beam Energy: "<<pKE<<"\n";
-	pushToLog();
-	//logStrm<<"Excitation En (MeV)| Scattering KE | Focal Plane KE | Focal Plane Momentum";
-	//pushToLog();
-	for(int i=0; i<numStates; ++i)
+	for(int j=0; j<numRuns; ++j)
 	{
-		//get the residual 'mass'
-		double rM = tM + states[i].en;
-		//cout<<pM<<"  "<<pE<<"  "<<bE<<"  "<<pKE<<"  "<<tM<<"  "<<rM<<endl;
-		//first calculate a repeated term
-		double exTerm = (rM*rM - cTerm);
-		//cout<<exTerm<<endl;
-		//now start calculating the parts of the sqrt in teh quadratic equation
-		double sqrtTerm1 = (exTerm*exTerm*16*(pE+tM)*(pE+tM));
-		double sqrtTerm2 = (exTerm*exTerm+4*pM*pM*ppctSqr);
-		double sqrtTerm3 = (4*pE*pE+8*pE*tM+4*tM*tM-4*ppctSqr);
-		//now calculate teh components of the numerator
-		double numTerm1 = 4*(pE+tM)*exTerm;
-		//cout<<numTerm1<<endl;
-		double numTerm2 = TMath::Sqrt(sqrtTerm1-(4*sqrtTerm2*sqrtTerm3));
-		//cout<<numTerm2<<endl;
-		//calculate the numerator
-		double numer = (numTerm2-numTerm1);
-		//cout<<numer<<endl;
-		//cout<<denom<<endl;
-		//cout<<(numer/denom)<<endl;
-		double scatKEn = ((numer/denom) - pM);
-		//caclulate the scattered kinetic energy
-		states[i].scatEn = scatKEn;
+		//first get the angle
+		double th = runs[j].angle*3.1415926/180.0;
+		//and the beam energy
+		double bE = runs[j].beamEn;
+		//and the target half thickness
+		double ht = runs[j].thickness/2.0;
+		//and the projectile's mass (converted to MeV/c^2)
+		double pM = runs[j].projMass*amuToMev;
+		//and the target mass (converted to MeV/c^2)
+		double tM = runs[j].targetMass*amuToMev;
 	
-		//calculate the energy after passing through the foil
-		double fpKE = interp->getVal(trav, scatKEn);
-		//now translate that into a total energy
-		double fpEn = fpKE + pM;
-		//now into a momentum
-		double fpMom = TMath::Sqrt(fpEn*fpEn-pM*pM);
-		states[i].fpMom = fpMom;
-		//logStrm<<(states[i].en)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom<<" | "<<states[i].fpMom;
+		//get the projectile energy on scattering
+		double pKE = interp->getVal(ht, bE);
+		//now calculate the total projectile energy
+		double pE = pKE + pM;
+		//now calculate the projectile momentum*c
+		double pP = TMath::Sqrt( pE*pE - pM*pM );
+		//calculate the constant term of the formula to be solved
+		double cTerm = (2*pM*pM + tM*tM + 2*tM*pE);
+		//now calculate the cosine of the angle
+		double cosTh = TMath::Cos(th);
+		double ppctSqr = pP*cosTh*pP*cosTh;
+		//now calculate the thickness traversed
+		double trav = (ht/cosTh);
+		//the solution is obtained via the quadratic equation thus the numerator and denomenator logic coming up
+		double denom = 8*(pE*pE + 2*pE*tM + tM*tM - ppctSqr);
+		logStrm<<"Run: "<<runs[j].runNumber<<"  Angle: "<<(th*180.0/3.1415926)<<" deg   Degraded Beam Energy: "<<pKE<<"\n";
+		pushToLog();
+		//logStrm<<"Excitation En (MeV)| Scattering KE | Focal Plane KE | Focal Plane Momentum";
 		//pushToLog();
+		for(int i=0; i<numStates; ++i)
+		{
+			//get the residual 'mass'
+			double rM = tM + states[j][i].en;
+			//cout<<pM<<"  "<<pE<<"  "<<bE<<"  "<<pKE<<"  "<<tM<<"  "<<rM<<endl;
+			//first calculate a repeated term
+			double exTerm = (rM*rM - cTerm);
+			//cout<<exTerm<<endl;
+			//now start calculating the parts of the sqrt in teh quadratic equation
+			double sqrtTerm1 = (exTerm*exTerm*16*(pE+tM)*(pE+tM));
+			double sqrtTerm2 = (exTerm*exTerm+4*pM*pM*ppctSqr);
+			double sqrtTerm3 = (4*pE*pE+8*pE*tM+4*tM*tM-4*ppctSqr);
+			//now calculate teh components of the numerator
+			double numTerm1 = 4*(pE+tM)*exTerm;
+			//cout<<numTerm1<<endl;
+			double numTerm2 = TMath::Sqrt(sqrtTerm1-(4*sqrtTerm2*sqrtTerm3));
+			//cout<<numTerm2<<endl;
+			//calculate the numerator
+			double numer = (numTerm2-numTerm1);
+			//cout<<numer<<endl;
+			//cout<<denom<<endl;
+			//cout<<(numer/denom)<<endl;
+			double scatKEn = ((numer/denom) - pM);
+			//caclulate the scattered kinetic energy
+			states[j][i].scatEn = scatKEn;
+	
+			//calculate the energy after passing through the foil
+			double fpKE = interp->getVal(trav, scatKEn);
+			//now translate that into a total energy
+			double fpEn = fpKE + pM;
+			//now into a momentum
+			double fpMom = TMath::Sqrt(fpEn*fpEn-pM*pM);
+			states[j][i].fpMom = fpMom;
+			//logStrm<<(states[j][i].en)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom<<" | "<<states[j][i].fpMom;
+			//pushToLog();
+		}
 	}
-}
-
-void CalWindow::doScatteringCalcOnState(int i)
-{
-	double amuToMev = 931.4948236727373;
-	//first get the angle
-	double th = runs[dispNum].angle*3.1415926/180.0;
-	//and the beam energy
-	double bE = runs[dispNum].beamEn;
-	//and the target half thickness
-	double ht = runs[dispNum].thickness/2.0;
-	//and the projectile's mass (converted to MeV/c^2)
-	double pM = runs[dispNum].projMass*amuToMev;
-	//and the target mass (converted to MeV/c^2)
-	double tM = runs[dispNum].targetMass*amuToMev;
-	
-	//get the projectile energy on scattering
-	double pKE = interp->getVal(ht, bE);
-	//now calculate the total projectile energy
-	double pE = pKE + pM;
-	//now calculate the projectile momentum*c
-	double pP = TMath::Sqrt( pE*pE - pM*pM );
-	//calculate the constant term of the formula to be solved
-	double cTerm = (2*pM*pM + tM*tM + 2*tM*pE);
-	//now calculate the cosine of the angle
-	double cosTh = TMath::Cos(th);
-	double ppctSqr = pP*cosTh*pP*cosTh;
-	//now calculate the thickness traversed
-	double trav = (ht/cosTh);
-	//the solution is obtained via the quadratic equation thus the numerator and denomenator logic coming up
-	double denom = 8*(pE*pE + 2*pE*tM + tM*tM - ppctSqr);
-	
-	//logStrm<<"Run: "<<runs[dispNum].runNumber<<"  Angle: "<<(th*180.0/3.1415926)<<" deg   Degraded Beam Energy: "<<pKE<<"\n";
-	//pushToLog();
-	//logStrm<<"Excitation En (MeV)| Scattering KE | Focal Plane KE | Focal Plane Momentum";
-	//pushToLog();
-	//get the residual 'mass'
-	double rM = tM + states[i].en;
-	//cout<<pM<<"  "<<pE<<"  "<<bE<<"  "<<pKE<<"  "<<tM<<"  "<<rM<<endl;
-	//first calculate a repeated term
-	double exTerm = (rM*rM - cTerm);
-	//cout<<exTerm<<endl;
-	//now start calculating the parts of the sqrt in teh quadratic equation
-	double sqrtTerm1 = (exTerm*exTerm*16*(pE+tM)*(pE+tM));
-	double sqrtTerm2 = (exTerm*exTerm+4*pM*pM*ppctSqr);
-	double sqrtTerm3 = (4*pE*pE+8*pE*tM+4*tM*tM-4*ppctSqr);
-	//now calculate teh components of the numerator
-	double numTerm1 = 4*(pE+tM)*exTerm;
-	//cout<<numTerm1<<endl;
-	double numTerm2 = TMath::Sqrt(sqrtTerm1-(4*sqrtTerm2*sqrtTerm3));
-	//cout<<numTerm2<<endl;
-	//calculate the numerator
-	double numer = (numTerm2-numTerm1);
-	//cout<<numer<<endl;
-	//cout<<denom<<endl;
-	//cout<<(numer/denom)<<endl;
-	double scatKEn = ((numer/denom) - pM);
-	//caclulate the scattered kinetic energy
-	states[i].scatEn = scatKEn;
-	
-	//calculate the energy after passing through the foil
-	double fpKE = interp->getVal(trav, scatKEn);
-	//now translate that into a total energy
-	double fpEn = fpKE + pM;
-	//now into a momentum
-	double fpMom = TMath::Sqrt(fpEn*fpEn-pM*pM);
-	states[i].fpMom = fpMom;
-	//logStrm<<(states[i].en/1000.0)<<" | "<<scatKEn<<" | "<<fpKE<<" | "<<fpMom<<" | "<<states[i].fpMom;
-	//pushToLog();
 }
 
 void CalWindow::pushToLog()
