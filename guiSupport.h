@@ -16,20 +16,8 @@ const char *interpDataType[] = { "Interp Data",      "*.igf",
 const char *initMessage="Welcome to the Notre Dame Giant Resonance Analysis GUI";
 const char *calInitMessage="Welcome to the Notre Dame Focal Plane Calibration GUI";
 
-/*
-TGTextEntry** exEntry;//excitation energy holders
-TGTextEntry** fpmEntry;//calculated focal plane momenta
-TGTextEntry** calxfpEntry;//xfp from calculated focal plane momentum
-TGTextEntry** aFitEntry;//assigned fit centroids
-TGTextEntry** calfpmEntry;//focal plain momenta from calibration
-TGTextEntry** difEntry;//difference between assigned fit centroid and calculated centroid
-TGComboBox** fitBox;//combo boxes for holding unassigned fits
-TGTextButton** assignButtons;//buttons to assign a selected fit to a state
-TGTextButton** unAssignButtons;//buttons to unassign a fit from a state
-*/
-
 const char *calColNames[] = { "Ex", "P_fp", "Calib. Xfp", "Assigned Cent.", "Calib. P_fp",
-											"Xfp Resid", "Fit Selection", "", ""};
+											"P_fp Resid", "Fit Selection", "", ""};
 
 struct RunData
 {
@@ -52,24 +40,24 @@ struct FitData
 	double height;
 	double centroid;
 	double width;
+	bool isAssign;
 	FitData& operator=(FitData& rhs){height=rhs.height; centroid=rhs.centroid; width=rhs.width; return *this;}
 };
 
 struct StateFit
 {
-	double fpMom;
-	double centroid;
-	StateFit& operator=(StateFit& rhs){fpMom=rhs.fpMom; centroid=rhs.centroid; return *this;}
+	int ftInd;
+	bool isSet;
+	StateFit& operator=(StateFit& rhs){isSet=rhs.isSet; ftInd=rhs.ftInd; return *this;}
 };
 
 struct StateData
 {
-	int index;
 	double en;
 	double scatEn;
 	double fpMom;
 	//bool isAssigned;
-	StateData& operator=(StateData& rhs){index=rhs.index; en=rhs.en; scatEn=rhs.scatEn; fpMom=rhs.fpMom; return *this;}
+	StateData& operator=(StateData& rhs){en=rhs.en; scatEn=rhs.scatEn; fpMom=rhs.fpMom; return *this;}
 };
 
 inline void swapDoubles(double& first, double& second)
