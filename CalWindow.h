@@ -927,6 +927,8 @@ void CalWindow::openInterpFile()
 	inFile.open(temp.c_str(),std::fstream::in | std::fstream::binary);
 	inFile.read(reinterpret_cast<char*>(sizesBuff),2*sizeof(int));//technically we do not really need these since both are always 1000
 	inFile.read(reinterpret_cast<char*>(xVal),sizeof(float)*1000);
+	logStrm<<"The min thickness is: "<<xVal[0]<<endl;
+	pushToLog();
 	inFile.read(reinterpret_cast<char*>(yVal),sizeof(float)*1000);
 	inFile.read(reinterpret_cast<char*>(zVal),sizeof(float)*1000000);
 	inFile.close();
@@ -1227,8 +1229,6 @@ float CalWindow::invertCalFunc(int i)
 		ostringstream cell;
 		float fpMom = states[dispNum][i].fpMom;
 		float c = c1 - fpMom;
-		float srtTerm = TMath::Sqrt( (b*b - (4.0*a*c)) );
-		//cout<<a<<" "<<b<<" "<<c<<" "<<c1<<" "<<srtTerm<<endl;
 		float position;
 		if(a<0)
 		{
@@ -1476,6 +1476,12 @@ void CalWindow::getFitData()
 	{return;}
 	TList* funcList = fitDiag->GetListOfFittingFunctions();
 	TF1* fit = reinterpret_cast<TF1*>(funcList->Last());
+	if(fit==NULL)
+	{
+		logStrm<<"No fits to get"<<endl;
+		pushToLog();
+		return;
+	}
 	//read the fit data
 	double* values = fit->GetParameters();
 	//clear the temp fit combobox
