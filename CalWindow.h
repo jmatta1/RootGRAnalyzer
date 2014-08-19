@@ -1253,11 +1253,11 @@ float CalWindow::invertCalFunc(int i)
 void CalWindow::updateComboBoxes()
 {
 	//first clear the fit lists and the possible fit lists
-	fitListBox->RemoveEntries(1,numFits[dispNum]+1);
+	fitListBox->RemoveEntries(1,numStates+1);
 	fitListBox->Select(0);
 	for(int i=0; i<numStates; ++i)
 	{
-		fitBox[i]->RemoveEntries(1,numFits[dispNum]+1);
+		fitBox[i]->RemoveEntries(1,numStates+1);
 		fitBox[i]->Select(0);
 	}
 	//iterate through fits and add each one to the fit list, then check if the fit is assigned
