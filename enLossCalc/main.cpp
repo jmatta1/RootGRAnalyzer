@@ -176,16 +176,16 @@ int main(int argc, char* argv[])
 	{
 		int index = j;
 		float en = enArr[j];
-		float thickness=0.0;
-		float deltaEn=0.0;
+		double thickness=0.0;
+		double deltaEn=0.0;
 		while( (thickness<th) )
 		{
-			float dedx = eLoss((en+deltaEn));
-			float enLost = dedx*thStep;
+			double dedx = eLoss((en+deltaEn));
+			double enLost = dedx*thStep;
 			deltaEn += enLost;
 			thickness += thStep;
 		}
-		finalEns[index]=(en+deltaEn);
+		initEns[index]=(en+deltaEn);
 	}
 	for(int i=1; i<1000; ++i)//loop across starting energies
 	{
@@ -198,15 +198,15 @@ int main(int argc, char* argv[])
 			int index2 = (index-1000);
 			float en = finalEns[index2];
 			float thickness=thArray[i-1];
-			float deltaEn=0.0;
+			double deltaEn=0.0;
 			while( (thickness<th) )
 			{
-				float dedx = eLoss((en+deltaEn));
-				float enLost = dedx*thStep;
+				double dedx = eLoss((en+deltaEn));
+				double enLost = dedx*thStep;
 				deltaEn += enLost;
 				thickness += thStep;
 			}
-			finalEns[index]=(en+deltaEn);
+			initEns[index]=(en+deltaEn);
 		}
 	}
 	}
@@ -226,7 +226,11 @@ int main(int argc, char* argv[])
 	output.write(reinterpret_cast<char*>(enArr),1000*sizeof(float));
 	//then write the grid of output values
 	output.write(reinterpret_cast<char*>(initEns),1000000*sizeof(float));
+	for(int i=0; i<1000; ++i)
+	{
+		cout<<thArray[i]<<"  "<<enArr[i]<<"  "<<finalEns[i]<<endl;
 	
+	}
 	output.close();
 	
 	delete[] enArr;
