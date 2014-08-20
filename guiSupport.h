@@ -13,6 +13,9 @@ const char *frRootFileType[] = { "Friend Root File",     "*_frnd.root",
 const char *interpDataType[] = { "Interp Data",      "*.igf",
                                0,               0 };
 
+const char *calDataType[] = { "Calibration Data",      "*.csv",
+                               0,               0 };
+
 const char *initMessage="Welcome to the Notre Dame Giant Resonance Analysis GUI";
 const char *calInitMessage="Welcome to the Notre Dame Focal Plane Calibration GUI";
 
@@ -60,6 +63,17 @@ struct StateData
 	double fpMom;
 	//bool isAssigned;
 	StateData& operator=(StateData& rhs){en=rhs.en; scatEn=rhs.scatEn; fpMom=rhs.fpMom; return *this;}
+};
+
+struct CalDataLine
+{
+	int calRunNum;
+	int rawRunNum;
+	float a;
+	float b;
+	float c;
+	float calD1;
+	float rawD1;
 };
 
 inline void swapDoubles(double& first, double& second)

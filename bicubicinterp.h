@@ -1,5 +1,4 @@
 #include "cubicspline.h"
-
 //produces a two dimensional interpolation on a regular grid of points
 //the class is given function outputs on the grid of
 //X and Y values {x0, x1, ..., x(n-1), xn} and {y0, y1, ..., y(n-1), yn}

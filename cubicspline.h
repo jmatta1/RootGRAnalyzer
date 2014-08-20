@@ -117,6 +117,7 @@ float CubicSpline::operator()(float x)
 	if(xArr == NULL)
 	{
 		return std::numeric_limits<float>::quiet_NaN();
+		//return 1.0e23;
 	}
 	
 	int klo, khi, k;
@@ -150,6 +151,7 @@ float CubicSpline::getVal(float x)
 	if(xArr == NULL)
 	{
 		return std::numeric_limits<float>::quiet_NaN();
+		//return 1.0e23;
 	}
 	
 	int klo, khi, k;

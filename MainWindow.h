@@ -41,12 +41,16 @@ using std::ios_base;
 #include<TSystem.h>
 #include<TFitResult.h>
 #include<TMath.h>
+#include<TGTextView.h>
+#include<TGSplitter.h>
+
 
 //my includes
 #include"guiSupport.h"
 #include"BasicCSDialog.h"
+#include"bicubicinterp.h"
 
-enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs, BasicCSInfoSimple, BasicCSInfoPerRun};
+enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs, BasicCSInfoSimple, BasicCSInfoPerRun, ExSpecs};
 enum UpdateCallType{ Initial, Normal, Final};
 
 TCut RayCut;
@@ -79,6 +83,11 @@ public:
 	void showFirstOrdShapes();
 	void makeBGSubSpecs();
 	void showSubbedShapes();
+	
+	//energy cal operations
+	void applyEnergyCal();
+	void makeEnCalSpecs();
+	void showEnergyCal();
 
 	//cs operations
 	void getBasicCSParamsSimple();
@@ -99,18 +108,19 @@ public:
 	void resetToStart();
 	void exitApp();
 	
-	void doClose();
+	void DoClose();
 	
 private:
 	//some private helper functions
 	void parseRunFileLine(const string& line, RunData& tempData);
+	void parseCalFileLine(const string& line, CalDataLine& tempData);
 	void pushToLog();
 	bool checkUpToRunData();
 	bool checkUpToMainFile();
 	bool checkUpToAuxFile();
 	bool checkUpToFrFile();
 	
-	double calculateBGNorm(int runN);
+	double calculateBGNorm(TGraph* regions);
 	
 	double calcCrossSection(double counts, const RunData& data, double thWidth, double phWidth);
 	
@@ -130,6 +140,8 @@ private:
 	string makeBGOnlySpecName(int runN);
 	string makeScaledBGSpecName(int runN);
 	string makeSubSpecName(int runN);
+	string makeExTreeName(int runN);
+	string makeExSubSpecName(int runN);
 
 	//functions for retrieving various things from files
 	TTree* retrieveTree(int runN);
@@ -147,6 +159,8 @@ private:
 	TH2F* retrieveBGOnlySpec(int runN);
 	TH2F* retrieveScaledBGSpec(int runN);
 	TH2F* retrieveSubSpec(int runN);
+	TTree* retrieveExTree(int runN);
+	TH2F* retrieveExSubSpec(int runN);
 
 	//functions for retrieving various things from files
 	//and then throwing out error messages if the pointer comes back null
@@ -165,14 +179,18 @@ private:
 	TH2F* testBGOnlySpec(int runN);
 	TH2F* testScaledBGSpec(int runN);
 	TH2F* testSubSpec(int runN);
+	TTree* testExTree(int runN);
+	TH2F* testExSubSpec(int runN);
 	
 	//display functions for sequential displays
 	void updateDisplay(const UpdateCallType& tp);
 	void updatePIDDisp(const UpdateCallType& tp);
 	void updateBGDisp(const UpdateCallType& tp);
+	void updateShapeDisp(const UpdateCallType& tp);
 	void updateSubDisp(const UpdateCallType& tp);
 	void grabBasicCsInfoPerRun(const UpdateCallType& tp);
 	void grabBasicCsInfoSimple(const UpdateCallType& tp);
+	void updateExDisp(const UpdateCallType& tp);
 	
 	//analysis stuff
 	RunData* runs;
@@ -219,13 +237,14 @@ private:
 	
 	//labels to store text
 	TGLabel* fileLabel;
-	TGLabel* fileControlLabel;
+	//TGLabel* fileControlLabel;
 	TGLabel* controlLabel;
 	TGLabel* sDLabel;
 	TGLabel* cutLabel;
 	TGLabel* shapeLabel;
 	TGLabel* csLabel;
-	
+	TGLabel* calLabel;
+
 	//action buttons
 	//cuts buttons
 	TGTextButton *getPIDs;
@@ -237,15 +256,14 @@ private:
 	TGTextButton *makeBGSubBut;
 	TGTextButton *showShapesBut;
 	TGTextButton *showbgSubBut;
+	TGTextButton *applyEnCalBut;
+	TGTextButton *makeEnCalSpecsBut;
+	TGTextButton *showEnCalBut;
 	//cross-section buttons
 	TGTextButton *getCSParamsAllRunsBut;
 	TGTextButton *getCSParamsPerRunBut;
 	TGTextButton *scsBut;
 	TGTextButton *byAngleCSBut;
-	//sequential display buttons
-	TGTextButton *prevSpec;
-	TGTextButton *nextSpec;
-	TGTextButton *endSpec;
 	
 	//file ops buttons
 	TGTextButton *rdRunData;
@@ -256,10 +274,15 @@ private:
 	TGTextButton *createFrFile;
 	TGTextButton *opFrFile;
 	
+	//sequential display buttons
+	TGTextButton *prevSpec;
+	TGTextButton *nextSpec;
+	TGTextButton *endSpec;
+	
 	//file activation buttons
-	TGTextButton *treeFocusBut;
+	/*TGTextButton *treeFocusBut;
 	TGTextButton *auxFocusBut;
-	TGTextButton *frFocusBut;
+	TGTextButton *frFocusBut;*/
 	
 	//overall control buttons
 	TGTextButton *clLogBut;
@@ -338,6 +361,21 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//display bgsub shapes button
 	showbgSubBut = new TGTextButton(sideBarFrame,"Show BG-sub Shapes");
 	showbgSubBut->Connect("Clicked()","MainWindow",this,"showSubbedShapes()");
+	
+	/******************************************
+	** Energy Calibration Buttons
+	******************************************/
+	calLabel = new TGLabel(sideBarFrame, "CS Extraction");
+	//apply energy cal button
+	applyEnCalBut = new TGTextButton(sideBarFrame,"Apply Energy Cal");
+	applyEnCalBut->Connect("Clicked()","MainWindow",this,"applyEnergyCal()");
+	//make energy cal specs button
+	makeEnCalSpecsBut = new TGTextButton(sideBarFrame,"Make En Cal Specs");
+	makeEnCalSpecsBut->Connect("Clicked()","MainWindow",this,"makeEnCalSpecs()");
+	//show energy cal button
+	showEnCalBut = new TGTextButton(sideBarFrame,"Show Energy Cal");
+	showEnCalBut->Connect("Clicked()","MainWindow",this,"showEnergyCal()");
+	
 	/******************************************
 	** Get Cross-Sections buttons
 	******************************************/
@@ -367,32 +405,16 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	sideBarFrame->AddFrame(makeBGSubBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(showShapesBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(showbgSubBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(calLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(applyEnCalBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(makeEnCalSpecsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(showEnCalBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getCSParamsAllRunsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getCSParamsPerRunBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(byAngleCSBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
-	/******************************************
-	** Sequential Display buttons
-	******************************************/
-	sDLabel = new TGLabel(sideBarFrame, "Sequential Display Buttons");
-	sideBarFrame->AddFrame(sDLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	//create and connect the sequential display buttons
-	//show previous spectrum
-	prevSpec = new TGTextButton(sideBarFrame,"Prev Spec");
-	prevSpec->Connect("Clicked()","MainWindow",this,"prevSeqSpec()");
-	//show next spectrum
-	nextSpec = new TGTextButton(sideBarFrame,"Next Spec");
-	nextSpec->Connect("Clicked()","MainWindow",this,"nextSeqSpec()");
-	//end display
-	endSpec = new TGTextButton(sideBarFrame,"End Display");
-	endSpec->Connect("Clicked()","MainWindow",this,"endSeqSpec()");
-	
-	//add the sequential display buttons to their frame
-	sideBarFrame->AddFrame(prevSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(nextSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(endSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//add the sidebar to the canvas frame
 	canvasFrame->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY, 2,2,2,2) );
@@ -451,9 +473,30 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	bottomFrame->AddFrame(fileOpsRowFrame, new TGLayoutHints(kLHintsExpandX | kLHintsTop, 2,2,2,2) );
 	
 	/******************************************
+	** Sequential Display buttons
+	******************************************/
+	sDLabel = new TGLabel(fileActFrame, "Display:");
+	fileActFrame->AddFrame(sDLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	//create and connect the sequential display buttons
+	//show previous spectrum
+	prevSpec = new TGTextButton(fileActFrame,"Previous");
+	prevSpec->Connect("Clicked()","MainWindow",this,"prevSeqSpec()");
+	//show next spectrum
+	nextSpec = new TGTextButton(fileActFrame,"Next");
+	nextSpec->Connect("Clicked()","MainWindow",this,"nextSeqSpec()");
+	//end display
+	endSpec = new TGTextButton(fileActFrame,"End Display");
+	endSpec->Connect("Clicked()","MainWindow",this,"endSeqSpec()");
+	
+	//add the sequential display buttons to their frame
+	fileActFrame->AddFrame(prevSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	fileActFrame->AddFrame(nextSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	fileActFrame->AddFrame(endSpec, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	
+	/******************************************
 	** File Control buttons
 	******************************************/
-	fileControlLabel = new TGLabel(fileActFrame, "File Activation: ");
+	/*fileControlLabel = new TGLabel(fileActFrame, "File Activation: ");
 	fileActFrame->AddFrame(fileControlLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY,2,2,2,2));
 	//create and connect the file activation buttons
 	//make tree file the current dir
@@ -469,7 +512,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//add the file activation buttons to their frame
 	fileActFrame->AddFrame(treeFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	fileActFrame->AddFrame(auxFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
-	fileActFrame->AddFrame(frFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
+	fileActFrame->AddFrame(frFocusBut, new TGLayoutHints(kLHintsExpandX,3,3,2,2));*/
 	
 	//add the file activation frame to its frame
 	bottomBarFrame->AddFrame(fileActFrame, new TGLayoutHints(kLHintsExpandX | kLHintsLeft, 2,2,2,2) );
@@ -1478,6 +1521,145 @@ void MainWindow::showSubbedShapes()
 	updateDisplay(Initial);
 }
 
+
+/**********************************************************
+** Energy Calibration buttons
+**********************************************************/
+void MainWindow::applyEnergyCal()
+{
+	logStrm<<"Please use the external program to apply the energy calibration."<<endl;
+	pushToLog();
+}
+
+void MainWindow::makeEnCalSpecs()
+{	 
+	if( !checkUpToFrFile() )
+	{	return; }
+	
+	logStrm<<"\n";
+	pushToLog();
+	
+	//loop across loaded runs
+	for(int i=0; i<numRuns; ++i)
+	{
+		logStrm<<"Preparing to construct specta for run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
+		pushToLog();
+		int runN = runs[i].runNumber;
+		//load the friend tree
+		TTree* frnd = testExTree( runN );
+		if(frnd==NULL)
+		{	return; }
+		
+		//construct histograms, the shape corrected one, the true + bg, the bg, the scaled bg and the sub
+		
+		//first get the bggraph and the pid cut
+		TGraph* bgGraph = testBGGraph(runN);
+		TCutG* pidCut = testPIDCut(runN);
+		
+		if(bgGraph == NULL || pidCut == NULL)
+		{
+			return;
+		}
+		
+		// now do stuff with the bgGraph
+		double* bgPts = bgGraph->GetX();
+		
+		//now get the bg normalization
+		double bgNorm = calculateBGNorm(bgGraph);
+		
+		//make all the histogram names
+		string exSubHistName = makeExSubSpecName( runN );
+		
+		//construct the histogram title
+		ostringstream titler;
+		titler<<"Run "<<runN<<" (True - Scaled BG) Thcorr:Ex";
+		string exSubHistTitle = titler.str();
+		
+		//make the actual histograms to hold things
+		TH2F* trHist = new TH2F("tempTrHist", "tempTrHist", 240, -10, 50, 300, -3, 3);
+		TH2F* scaledBGHist = new TH2F("tempBgHist", "tempBgHist",  240, -10, 50, 300, -3, 3);
+		TH2F* subHist = new TH2F(exSubHistName.c_str(), exSubHistTitle.c_str(),  240, -10, 50, 300, -3, 3);
+		
+		//now set up the branches of our new tree to retrieve everything
+		float theta = 0.0, ex = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
+		frnd->SetBranchAddress("Thcorr",&theta);
+		frnd->SetBranchAddress("Ex",&ex);
+		frnd->SetBranchAddress("Yfp",&yfp);
+		frnd->SetBranchAddress("Pi1",&pi1);
+		frnd->SetBranchAddress("Pi2",&pi2);
+		frnd->SetBranchAddress("Rayid",&rayid);
+		
+		Long64_t numEnts = (frnd->GetEntries());
+		//now fill the histograms other than the subtracted spectrum
+		for(Long64_t j = 0; j<numEnts; ++j)
+		{
+			//first get the entry
+			frnd->GetEntry(j);
+			//check the rayid cut as it is applied to everything
+			if( rayid == 0)
+			{
+				//now test for the PID cut as everything else has that
+				if( 1 == (pidCut->IsInside(pi2,pi1)) )
+				{
+					//test to see if it is in the background region
+					if( (bgPts[0]<yfp && yfp<bgPts[1]) || (bgPts[2]<yfp && yfp<bgPts[3]) )
+					{
+						//increment the scaled bg spectrum using the scaling factor as the weight
+						scaledBGHist->Fill(ex,theta,bgNorm);
+					}//otherwise test if we are in the true region
+					else if( bgPts[1]<=yfp && yfp<=bgPts[2] )
+					{
+						//increment the tr+bg spectrum
+						trHist->Fill(ex,theta);
+					}
+				}
+			}
+		}
+		
+		//now the spectra should be filled so make the subtracted spectrum
+		subHist->Add(trHist, scaledBGHist, 1, -1);
+		//subHist->Sumw2();
+		int nBinsMax=240*300+1;
+		int count = 0;
+		//now zero any bins in the subtracted histogram that are negative
+		for(int k = 1; k<nBinsMax; ++k)
+		{
+			if( (subHist->GetBinContent(k)) < 0 )
+			{
+				++count;
+				subHist->SetBinContent(k, 0.0);
+			}
+		}
+		
+		logStrm<<"Zeroed "<<count<<" bins that were negative after subtraction"<<endl;
+		pushToLog();
+		
+		//now save the spectra
+		auxFile->cd();
+		subHist->Write(exSubHistName.c_str(),TObject::kOverwrite);
+		
+		auxFile->Flush();
+		delete frnd; 
+		delete trHist;
+		delete scaledBGHist;
+		delete subHist;
+		delete bgGraph;
+		delete pidCut;
+	}
+	logStrm<<"Done constructing histograms";
+	pushToLog();
+}
+
+
+void MainWindow::showEnergyCal()
+{
+	if(!checkUpToFrFile())
+	{	return; }
+	dispNum = 0;
+	dispFunc = ExSpecs;
+	updateDisplay(Initial);
+}
+
 void MainWindow::getBasicCSParamsSimple()
 {
 	if(!checkUpToFrFile())
@@ -1590,7 +1772,7 @@ void MainWindow::simpleGetCS()
 			
 			logStrm<<"Please draw the line that defines the upper bound in xfp for state "<<(j+1);
 			pushToLog();
-			TLine* line = (TLine*)gPad->WaitPrimitive("TLine","Line");
+			line = (TLine*)gPad->WaitPrimitive("TLine","Line");
 			x1 = line->GetX1();
 			x2 = line->GetX2();
 			y1 = line->GetY1();
@@ -1616,7 +1798,7 @@ void MainWindow::simpleGetCS()
 			yArr[4]=lowAngle;
 			float central=(runs[i].angle + ((lowAngle+highAngle)/2));
 			
-			output<<runs[i].runNumber<<", "<<(low+runs[i].angle)<<", "<<(high+runs[i].angle)<<", "<<central<<", ";
+			output<<runs[i].runNumber<<", "<<(lowAngle+runs[i].angle)<<", "<<(highAngle+runs[i].angle)<<", "<<central<<", ";
 			
 			for(int k=0; k<numStates; ++k)
 			{
@@ -1874,7 +2056,6 @@ void MainWindow::updatePIDDisp(const UpdateCallType& tp)
 		whiteBoard->Clear();
 		whiteBoard->Update();
 		return;
-		break;	
 	}
 	
 	//retrieve the tree and cuts
@@ -2000,7 +2181,6 @@ void MainWindow::updateBGDisp(const UpdateCallType& tp)
 		whiteBoard->Clear();
 		whiteBoard->Update();
 		return;
-		break;	
 	}
 	//retrieve the cuts and the tree
 	origHist = testBGSpec(runs[dispNum].runNumber);
@@ -2111,7 +2291,6 @@ void MainWindow::updateShapeDisp(const UpdateCallType& tp)
 		whiteBoard->Clear();
 		whiteBoard->Update();
 		return;
-		break;	
 	}
 	
 	origShape = testOrigShapeSpec(runs[dispNum].runNumber);
@@ -2205,8 +2384,6 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 		}
 		whiteBoard->Clear();
 		whiteBoard->Update();
-		return;
-		break;	
 	}
 	
 	int runN = runs[dispNum].runNumber;
@@ -2339,6 +2516,57 @@ void MainWindow::grabBasicCsInfoPerRun(const UpdateCallType& tp)
 	}
 }
 
+void MainWindow::updateExDisp(const UpdateCallType& tp)
+{
+	static TH2F* exSpec;
+	if(tp==Initial)
+	{
+		exSpec = NULL;
+		whiteBoard->Clear();
+		whiteBoard->Update();
+	}
+	else if(tp==Normal)
+	{
+		if(exSpec!=NULL)
+		{
+			delete exSpec;
+			exSpec=NULL;
+		}
+		whiteBoard->Clear();
+		whiteBoard->Update();
+	}
+	else if(tp==Final)
+	{
+		logStrm<<"Done with display, erasing whiteboard";
+		pushToLog();
+		if(exSpec!=NULL)
+		{
+			delete exSpec;
+			exSpec=NULL;
+		}
+		whiteBoard->Clear();
+		whiteBoard->Update();
+		return;
+	}
+	
+	exSpec = testExSubSpec(runs[dispNum].runNumber);
+	
+	if(exSpec==NULL)
+	{	
+		logStrm<<"Backing out of display mode";
+		pushToLog();
+		dispNum = 0;
+		dispFunc = None;
+		updateExDisp(Final);//to cleanup static vars
+		return;
+	}
+	
+	exSpec->Draw("colz");
+	gPad->SetLogy(0);
+	gPad->SetLogz(1);
+	whiteBoard->Update();
+}
+
 void MainWindow::updateDisplay(const UpdateCallType& tp)
 {
 	switch(dispFunc)
@@ -2360,6 +2588,9 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 			break;
 		case BasicCSInfoPerRun:
 			grabBasicCsInfoPerRun(tp);
+			break;
+		case ExSpecs:
+			updateExDisp(tp);
 			break;
 		case None:
 			logStrm<<"In update display with no display function";
@@ -2876,6 +3107,35 @@ TTree* MainWindow::testFirstOrderShapeTree(int runN)
 	}
 }
 
+string MainWindow::makeExTreeName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"run"<<runN<<"_Ex_tree";
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TTree* MainWindow::retrieveExTree(int runN)
+{
+	string histName = makeExTreeName(runN);
+	return reinterpret_cast<TTree*>(frFile->Get(histName.c_str()));
+}
+
+TTree* MainWindow::testExTree(int runN)
+{
+	TTree* temp = retrieveExTree(runN);
+	if( temp==NULL )
+	{
+		logStrm<<"Missing an excitation energy tree, you might have the wrong friend file loaded";
+		pushToLog();
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
 string MainWindow::makeTRpBGSpecName(int runN)
 {
 	ostringstream bgNamer;
@@ -2992,6 +3252,35 @@ TH2F* MainWindow::testSubSpec(int runN)
 	}
 }
 
+string MainWindow::makeExSubSpecName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"h2ExSubSpec"<<runN;
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TH2F* MainWindow::retrieveExSubSpec(int runN)
+{
+	string histName = makeExSubSpecName(runN);
+	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
+}
+
+TH2F* MainWindow::testExSubSpec(int runN)
+{
+	TH2F* temp = retrieveExSubSpec(runN);
+	if( temp==NULL )
+	{
+		logStrm<<"Missing a Subtracted Theta vs Ex spectrum, you might have the wrong aux file loaded";
+		pushToLog();
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
 double MainWindow::calculateBGNorm(TGraph* regions)
 {
 	//first get the x values of the graph
@@ -3082,6 +3371,60 @@ bool MainWindow::checkUpToFrFile()
 		return false;
 	}
 	return true;
+}
+
+void MainWindow::parseCalFileLine(const string& line, CalDataLine& tempData)
+{
+	istringstream conv;
+	//read the cal run number
+	int ind = line.find(',');
+	string temp = line.substr(0,ind);
+	string tempLine = line.substr(ind+1);
+	conv.str(temp);
+	conv>>tempData.calRunNum;
+	conv.clear();
+	//read the a
+	ind = tempLine.find(',');
+	temp = tempLine.substr(0,ind);
+	tempLine = tempLine.substr(ind+1);
+	conv.str(temp);
+	conv>>tempData.a;
+	conv.clear();
+	//read the b
+	ind = tempLine.find(',');
+	temp = tempLine.substr(0,ind);
+	tempLine = tempLine.substr(ind+1);
+	conv.str(temp);
+	conv>>tempData.b;
+	conv.clear();
+	//read the c
+	ind = tempLine.find(',');
+	temp = tempLine.substr(0,ind);
+	tempLine = tempLine.substr(ind+1);
+	conv.str(temp);
+	conv>>tempData.c;
+	conv.clear();
+	//read the cal D1
+	ind = tempLine.find(',');
+	temp = tempLine.substr(0,ind);
+	tempLine = tempLine.substr(ind+1);
+	conv.str(temp);
+	conv>>tempData.calD1;
+	conv.clear();
+	//read the raw run number
+	ind = tempLine.find(',');
+	temp = tempLine.substr(0,ind);
+	tempLine = tempLine.substr(ind+1);
+	conv.str(temp);
+	conv>>tempData.rawRunNum;
+	conv.clear();
+	//read the raw D1
+	ind = tempLine.find(',');
+	temp = tempLine.substr(0,ind);
+	tempLine = tempLine.substr(ind+1);
+	conv.str(temp);
+	conv>>tempData.rawD1;
+	conv.clear();
 }
 
 void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
