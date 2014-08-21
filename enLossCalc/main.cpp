@@ -226,11 +226,6 @@ int main(int argc, char* argv[])
 	output.write(reinterpret_cast<char*>(enArr),1000*sizeof(float));
 	//then write the grid of output values
 	output.write(reinterpret_cast<char*>(initEns),1000000*sizeof(float));
-	for(int i=0; i<1000; ++i)
-	{
-		cout<<thArray[i]<<"  "<<enArr[i]<<"  "<<finalEns[i]<<endl;
-	
-	}
 	output.close();
 	
 	delete[] enArr;
