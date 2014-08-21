@@ -437,6 +437,12 @@ void applyEnergyCal(RunData* runs, int numRuns)
 			float sqrtTerm = (constTerm - partTerm1*scEn - partTerm2*scEn + partTerm3*scMom*costh);
 			//finally, the excitation energy
 			ex = TMath::Sqrt(sqrtTerm) - tM;
+			/*cout<<"Angle: "<<radians<<" thickness: "<<thTrav<<" Xfp: "<<xfp<<" fp Momentum: "<<fpMom<<endl;
+			cout<<"fp Kinetic En: "<<fpKe<<" scattered Kinetic En: "<<scKe<<" excitation energy: "<<ex<<endl;
+			if(j==20)
+			{
+				return;
+			}*/
 			if( (j%50000) == 0)
 			{
 				cout<<"Event number: "<<j<<endl;
