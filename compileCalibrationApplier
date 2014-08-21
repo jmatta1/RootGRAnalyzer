@@ -1,4 +1,0 @@
-#!/bin/bash
-
-g++ calApply.cpp -O2 -o calApply -L/usr/local/lib/root -lCore -lCint -lRIO -lNet -lHist -lGraf -lGraf3d -lGpad -lTree -lRint -lPostscript -lMatrix -lPhysics -lMathCore -lThread -pthread -lm -ldl -rdynamic -I/usr/local/include/root
-
