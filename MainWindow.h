@@ -94,6 +94,7 @@ public:
 	void getBasicCSParamsPerRun();
 	void simpleGetCS();
 	void getCSByAngle();
+	void getCSByExCuts();
 
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -113,7 +114,7 @@ public:
 private:
 	//some private helper functions
 	void parseRunFileLine(const string& line, RunData& tempData);
-	void parseCalFileLine(const string& line, CalDataLine& tempData);
+	int parseBinFileLine(const string& line, float* lowArray, float* highArray);
 	void pushToLog();
 	bool checkUpToRunData();
 	bool checkUpToMainFile();
@@ -264,6 +265,7 @@ private:
 	TGTextButton *getCSParamsPerRunBut;
 	TGTextButton *scsBut;
 	TGTextButton *byAngleCSBut;
+	TGTextButton *byExCutCSBut;
 	
 	//file ops buttons
 	TGTextButton *rdRunData;
@@ -392,6 +394,10 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//get cross-sections by angle
 	byAngleCSBut = new TGTextButton(sideBarFrame,"CS By Angle");
 	byAngleCSBut->Connect("Clicked()","MainWindow",this,"getCSByAngle()");
+	//get cross-sections using the excitation energy cuts
+	byExCutCSBut = new TGTextButton(sideBarFrame,"CS From Ex Cuts");
+	byExCutCSBut->Connect("Clicked()","MainWindow",this,"getCSByExCuts()");
+	
 	
 	
 	//add the sidebar buttons to the sidebar frame
@@ -414,6 +420,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	sideBarFrame->AddFrame(getCSParamsPerRunBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(byAngleCSBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(byExCutCSBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	
 	//add the sidebar to the canvas frame
@@ -1576,9 +1583,9 @@ void MainWindow::makeEnCalSpecs()
 		string exSubHistTitle = titler.str();
 		
 		//make the actual histograms to hold things
-		TH2F* trHist = new TH2F("tempTrHist", "tempTrHist", 240, -10, 50, 300, -3, 3);
-		TH2F* scaledBGHist = new TH2F("tempBgHist", "tempBgHist",  240, -10, 50, 300, -3, 3);
-		TH2F* subHist = new TH2F(exSubHistName.c_str(), exSubHistTitle.c_str(),  240, -10, 50, 300, -3, 3);
+		TH2F* trHist = new TH2F("tempTrHist", "tempTrHist", 2400, -10, 50, 300, -3, 3);
+		TH2F* scaledBGHist = new TH2F("tempBgHist", "tempBgHist",  2400, -10, 50, 300, -3, 3);
+		TH2F* subHist = new TH2F(exSubHistName.c_str(), exSubHistTitle.c_str(),  2400, -10, 50, 300, -3, 3);
 		
 		//now set up the branches of our new tree to retrieve everything
 		float theta = 0.0, ex = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
@@ -2007,6 +2014,86 @@ void MainWindow::getCSByAngle()
 	pushToLog();
 }
 
+void MainWindow::getCSByExCuts()
+{
+	if(!checkUpToFrFile())
+	{	return; }
+	
+	if(numBnds!=numRuns)
+	{
+		logStrm<<"Angle Boundary Information has not been entered for every run";
+		pushToLog();
+		return;
+	}
+	logStrm<<"\nPlease give the file with the Excitation energy bin information\n";
+	pushToLog();
+	//get the file name using a file dialog
+	static TString directory(".");
+	TGFileInfo fileInfo;
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = combRootFileType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDOpen, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	string temp = string(fileInfo.fFilename);
+	if( (temp.size()-11) != ( temp.rfind("_merge.root") ) )
+	{
+		temp.append("_merge.root");
+	}
+	directory = fileInfo.fIniDir;
+	ifstream input;
+	input.open(fileInfo.fFilename);
+	//count the number of lines
+	string line;
+	int numRunBins=0;
+	while (getline(input, line))
+	{
+		if(line.length()>4)//to handle blank lines at the end of a file
+		{
+			++numRunBins;
+		}
+		else
+		{
+			break;
+		}
+	}
+	//jump back to the beginning
+	input.clear();
+	//check if there was a binning for every run
+	if(numRunBins < numRuns)
+	{
+		logStrm<<"The provided bin file had fewer runs than there are in the currently loaded run data";
+		pushToLog();
+		return;
+	}
+	else if(numRunBins > numRuns)
+	{
+		logStrm<<"The provided bin file had more runs than there are in the currently loaded run data";
+		pushToLog();
+		return;
+	}
+	input.seekg(0,ios_base::beg);
+	//now read line by line to get the run data
+	getline(input, line);
+	int count = 0;
+	BinData runBins;
+	while(!input.eof() && count<numRuns)
+	{
+		parseBinFileLine(line, runBins );
+		getline(input, line);
+		++count;
+	}
+	logStrm<<"\nRun data has been loaded";
+	pushToLog();
+}
 
 /******************************************
 *******************************************
@@ -3373,58 +3460,46 @@ bool MainWindow::checkUpToFrFile()
 	return true;
 }
 
-void MainWindow::parseCalFileLine(const string& line, CalDataLine& tempData)
+int MainWindow::parseBinFileLine(const string& line, BinData& tempData)
 {
 	istringstream conv;
-	//read the cal run number
+	//read run number
 	int ind = line.find(',');
 	string temp = line.substr(0,ind);
 	string tempLine = line.substr(ind+1);
 	conv.str(temp);
-	conv>>tempData.calRunNum;
+	conv>>tempData.runNum;
 	conv.clear();
-	//read the a
+	//read the number of bins
 	ind = tempLine.find(',');
 	temp = tempLine.substr(0,ind);
 	tempLine = tempLine.substr(ind+1);
 	conv.str(temp);
-	conv>>tempData.a;
+	conv>>tempData.numBins;
 	conv.clear();
-	//read the b
-	ind = tempLine.find(',');
-	temp = tempLine.substr(0,ind);
-	tempLine = tempLine.substr(ind+1);
-	conv.str(temp);
-	conv>>tempData.b;
-	conv.clear();
-	//read the c
-	ind = tempLine.find(',');
-	temp = tempLine.substr(0,ind);
-	tempLine = tempLine.substr(ind+1);
-	conv.str(temp);
-	conv>>tempData.c;
-	conv.clear();
-	//read the cal D1
-	ind = tempLine.find(',');
-	temp = tempLine.substr(0,ind);
-	tempLine = tempLine.substr(ind+1);
-	conv.str(temp);
-	conv>>tempData.calD1;
-	conv.clear();
-	//read the raw run number
-	ind = tempLine.find(',');
-	temp = tempLine.substr(0,ind);
-	tempLine = tempLine.substr(ind+1);
-	conv.str(temp);
-	conv>>tempData.rawRunNum;
-	conv.clear();
-	//read the raw D1
-	ind = tempLine.find(',');
-	temp = tempLine.substr(0,ind);
-	tempLine = tempLine.substr(ind+1);
-	conv.str(temp);
-	conv>>tempData.rawD1;
-	conv.clear();
+	//create the arrays to hold the bins
+	tempData.lowEdges = new float[tempData.numBins];
+	tempData.highEdges = new float[tempData.numBins];
+	//now loop through the bins
+	for(int i=0; i < tempData.numBins; ++i)
+	{
+		//read the low edge
+		ind = tempLine.find(',');
+		temp = tempLine.substr(0,ind);
+		tempLine = tempLine.substr(ind+1);
+		conv.str(temp);
+		conv>>tempData.lowEdges[i];
+		conv.clear();
+		
+		//read the high edge
+		ind = tempLine.find(',');
+		temp = tempLine.substr(0,ind);
+		tempLine = tempLine.substr(ind+1);
+		conv.str(temp);
+		conv>>tempData.lowEdges[i];
+		conv.clear();	
+	}
+	
 }
 
 void MainWindow::parseRunFileLine(const string& line, RunData& tempData)
