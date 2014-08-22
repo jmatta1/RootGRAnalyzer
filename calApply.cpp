@@ -407,7 +407,7 @@ void applyEnergyCal(RunData* runs, int numRuns)
 		//cout<<"At point 8"<<endl;
 		//field strenght ratio
 		float ratio = (calDat.rawD1/calDat.calD1);
-		
+		//cout<<"bE: "<<bE<<" pE "<<pE<<endl;
 		cout<<"Preparing to calibrate run"<<runs[runInd].runNumber<<"\n";
 		cout<<"There are: "<<numEnts<<" events to process."<<endl;
 		//fill the new tree
@@ -437,7 +437,7 @@ void applyEnergyCal(RunData* runs, int numRuns)
 			float sqrtTerm = (constTerm - partTerm1*scEn - partTerm2*scEn + partTerm3*scMom*costh);
 			//finally, the excitation energy
 			ex = TMath::Sqrt(sqrtTerm) - tM;
-			/*cout<<"Angle: "<<radians<<" thickness: "<<thTrav<<" Xfp: "<<xfp<<" fp Momentum: "<<fpMom<<endl;
+			/*cout<<"Angle: "<<radians*180.0/3.1415926<<" thickness: "<<thTrav<<" Xfp: "<<xfp<<" fp Momentum: "<<fpMom<<endl;
 			cout<<"fp Kinetic En: "<<fpKe<<" scattered Kinetic En: "<<scKe<<" excitation energy: "<<ex<<endl;
 			if(j==20)
 			{
