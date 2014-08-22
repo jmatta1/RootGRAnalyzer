@@ -76,6 +76,14 @@ struct CalDataLine
 	float rawD1;
 };
 
+struct BinData
+{
+	int runNum;
+	int numBins;
+	float* lowEdges;
+	float* highEdges;
+};
+
 inline void swapDoubles(double& first, double& second)
 {
 	double swap = first;
