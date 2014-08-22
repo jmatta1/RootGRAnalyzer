@@ -1234,7 +1234,7 @@ void MainWindow::getFirstOrdShapes()
 		string histName = makeOrigShapeSpecName( runs[i].runNumber );
 		//build the draw command, the cut does not need building as it is simple
 		ostringstream drawCmd;
-		drawCmd<<"Thscat:Xfp>>"<<histName<<"(240,-600,600,300,-3,3)";
+		drawCmd<<"Thscat:Xfp>>"<<histName<<"(2400,-600,600,300,-3,3)";
 		string drawStr = drawCmd.str();
 		//draw the histogram and set the axes correctly
 		temp->Draw(drawStr.c_str(),RayCut,"colz");
@@ -1433,11 +1433,11 @@ void MainWindow::makeBGSubSpecs()
 		string subHistTitle = titler.str();
 		
 		//make the actual histograms to hold things
-		TH2F* shapeHist = new TH2F(shapeHistName.c_str(), shapeHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
-		TH2F* trHist = new TH2F(trHistName.c_str(), trHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
-		TH2F* bgHist = new TH2F(bgHistName.c_str(), bgHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
-		TH2F* scaledBGHist = new TH2F(scaledBgHistName.c_str(), scaledBGHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
-		TH2F* subHist = new TH2F(subHistName.c_str(), subHistTitle.c_str(), 240, -600, 600, 300, -3, 3);
+		TH2F* shapeHist = new TH2F(shapeHistName.c_str(), shapeHistTitle.c_str(), 2400, -600, 600, 300, -3, 3);
+		TH2F* trHist = new TH2F(trHistName.c_str(), trHistTitle.c_str(), 2400, -600, 600, 300, -3, 3);
+		TH2F* bgHist = new TH2F(bgHistName.c_str(), bgHistTitle.c_str(), 2400, -600, 600, 300, -3, 3);
+		TH2F* scaledBGHist = new TH2F(scaledBgHistName.c_str(), scaledBGHistTitle.c_str(), 2400, -600, 600, 300, -3, 3);
+		TH2F* subHist = new TH2F(subHistName.c_str(), subHistTitle.c_str(), 2400, -600, 600, 300, -3, 3);
 		
 		//now set up the branches of our new tree to retrieve everything
 		float theta = 0.0, xfp = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
@@ -1482,7 +1482,7 @@ void MainWindow::makeBGSubSpecs()
 		//now the spectra should be filled so make the subtracted spectrum
 		subHist->Add(trHist, scaledBGHist, 1, -1);
 		//subHist->Sumw2();
-		int nBinsMax=240*300+1;
+		int nBinsMax=2400*300+1;
 		int count = 0;
 		//now zero any bins in the subtracted histogram that are negative
 		for(int k = 1; k<nBinsMax; ++k)
@@ -1626,7 +1626,7 @@ void MainWindow::makeEnCalSpecs()
 		//now the spectra should be filled so make the subtracted spectrum
 		subHist->Add(trHist, scaledBGHist, 1, -1);
 		//subHist->Sumw2();
-		int nBinsMax=240*300+1;
+		int nBinsMax=2400*300+1;
 		int count = 0;
 		//now zero any bins in the subtracted histogram that are negative
 		for(int k = 1; k<nBinsMax; ++k)
