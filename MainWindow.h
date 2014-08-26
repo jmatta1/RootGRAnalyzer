@@ -1342,7 +1342,11 @@ void MainWindow::getFirstOrdShapes()
 		}
 		frFile->cd();
 		string oldTreeName = makeTreeName(runs[i].runNumber);
-		frnd->AddFriend( oldTreeName.c_str(), mainFile->GetName() );
+		string mainFilePath = mainFile->GetName();
+		int index = mainFilePath.find_last_of('/');
+		string mainFileName = "./";
+		mainFileName.append( mainFilePath.substr(index+1) );
+		frnd->AddFriend( oldTreeName.c_str(), mainFileName.c_str() );
 		frnd->FlushBaskets();
 		frnd->Write(treeName.c_str(),TObject::kOverwrite);
 		TFile* file = frnd->GetCurrentFile();

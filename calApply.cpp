@@ -451,7 +451,11 @@ void applyEnergyCal(RunData* runs, int numRuns)
 		}
 		frFile->cd();
 		string oldTreeName = makeFirstOrderShapeTreeName(runs[runInd].runNumber);
-		exTree->AddFriend( oldTreeName.c_str(), frFile->GetName() );
+		string frFilePath = frFile->GetName();
+		int index = frFilePath.find_last_of('/');
+		string frFileName = "./";
+		frFileName.append( frFilePath.substr(index+1) );
+		exTree->AddFriend( oldTreeName.c_str(), frFileName.c_str() );
 		exTree->FlushBaskets();
 		exTree->Write(treeName.c_str(),TObject::kOverwrite);
 		TFile* file = exTree->GetCurrentFile();
