@@ -11,20 +11,21 @@ using std::cout;
 using std::cin;
 using std::endl;
 #include"cubicspline.h"
+#include"Math/Interpolator.h"
 
 int main(int argc, char* argv[])
 {
-	float thStep = 0.0001;//ie 100 ng/cm2 chunks for the numerical integrals
+	double thStep = 0.0001;//ie 100 ng/cm2 chunks for the numerical integrals
 	
-	float minEn;
-	float maxEn;
+	double minEn;
+	double maxEn;
 	cout<<"Enter the Minimum energy expected (MeV)"<<endl;
 	cin>>minEn;
 	minEn = minEn-10.0;
 	cout<<"Enter the Beam Energy (MeV)"<<endl;
 	cin>>maxEn;
 	maxEn = maxEn + 10.0;
-	float de = ((maxEn-minEn)/999.0);
+	double de = ((maxEn-minEn)/999.0);
 	ofstream enOutput;
 	enOutput.open("./enList.txt", std::fstream::out);
 	int minBnd = (1000.0*(minEn));
@@ -34,6 +35,18 @@ int main(int argc, char* argv[])
 	{
 		enOutput<<i<<endl;
 	}
+	
+	float* enArrForOutput = new float[1000];
+	minEn-=10.0;
+	maxEn-=10.0;
+	de = ((maxEn-minEn)/999.0);
+	int count = 0;
+	for(float i=minEn; i<=maxEn; i+=de)
+	{
+		enArrForOutput[count] = i;
+		++count;
+	}
+	
 	enOutput.close();
 	cout<<"Energy list written to: enList.txt"<<endl;
 	cout<<"Please give the file name of the file with the SRIM output"<<endl;
@@ -50,8 +63,8 @@ int main(int argc, char* argv[])
 		getline(input, line);
 	}
 	//arrays for holding energies and de/dx
-	float* enArr = new float[1000];
-	float* deArr = new float[1000];
+	double* enArr = new double[1000];
+	double* deArr = new double[1000];
 	//read the next 1000 lines for the energy losses
 	for(int i=0; i<1000; ++i)
 	{
@@ -70,23 +83,24 @@ int main(int argc, char* argv[])
 		string elELoss = tempLine.substr(0,ind+1);
 		string nELoss = tempLine.substr(ind+1);
 		conv.str(elELoss);
-		float temp;
+		double temp;
 		conv>>temp;
 		conv.clear();
 		//get the nuclear energy loss
 		conv.str(nELoss);
-		float temp2;
+		double temp2;
 		conv>>temp2;
 		conv.clear();
 		//set the energy loss equal to the sum of the electronic and nuclear components
 		deArr[i] = (temp+temp2);
 	}
 	input.close();
-	CubicSpline eLoss(enArr,deArr,1000,0.0,0.0,BothNatural);
-	
+	ROOT::Math::Interpolator eLoss(1000);
+	eLoss.SetData(1000,enArr,deArr);
+	//CubicSpline eLoss(enArr,deArr,1000,0.0,0.0,BothNatural);
 	//setup and do the integrals
-	float minTh;
-	float maxTh;
+	double minTh;
+	double maxTh;
 	cout<<"Please give the thickness of the thinnest target in mg/cm^2"<<endl;
 	cin>>minTh;
 	minTh = minTh/4.0;
@@ -94,7 +108,7 @@ int main(int argc, char* argv[])
 	cin>>maxTh;
 	maxTh = maxTh*4.0;
 	
-	float dt = ((maxTh-minTh)/999.0);
+	double dt = ((maxTh-minTh)/999.0);
 	
 	float* thArray = new float[1000];
 	
@@ -105,19 +119,20 @@ int main(int argc, char* argv[])
 	//first calculate the initial energy vs thickness grid (with the final energies as grid points)
 	{
 	cout<<"Calculating initial to final energy grid.\nAcross the thickness range: "<<minTh<<"mg/cm2 to "<<maxTh<<"mg/cm^2"<<endl;
-	float th = minTh;
+	double th = minTh;
 	thArray[0]=th;
 	cout<<"Currently at: Thickness = "<<thArray[0]<<" mg/cm2"<<endl;
 	for(int j=0; j<1000; ++j)
 	{
 		int index = j;
-		float en = enArr[j];
-		float thickness=0.0;
-		float deltaEn=0.0;
+		double en = enArrForOutput[j];
+		double thickness=0.0;
+		double deltaEn=0.0;
 		while( (thickness<th) )
 		{
-			float dedx = eLoss((en-deltaEn));
-			float enLost = dedx*thStep;
+			double dedx = eLoss.Eval((en-deltaEn));
+			//cout<<(en-deltaEn)<<endl;
+			double enLost = dedx*thStep;
 			deltaEn += enLost;
 			thickness += thStep;
 		}
@@ -133,13 +148,13 @@ int main(int argc, char* argv[])
 		{
 			int index = i*1000+j;
 			int index2 = (index-1000);
-			float en = finalEns[index2];
-			float thickness=thArray[i-1];
-			float deltaEn=0.0;
+			double en = finalEns[index2];
+			double thickness=thArray[i-1];
+			double deltaEn=0.0;
 			while( (thickness<th) )
 			{
-				float dedx = eLoss((en-deltaEn));
-				float enLost = dedx*thStep;
+				double dedx = eLoss.Eval((en-deltaEn));
+				double enLost = dedx*thStep;
 				deltaEn += enLost;
 				thickness += thStep;
 			}
@@ -148,7 +163,7 @@ int main(int argc, char* argv[])
 	}
 	}
 	//now write out the initial energy binary grid file
-	cout<<"Give the filename for the file that has initial energy vs thickness"<<endl;
+	cout<<"Give the name for the file that will take starting energy and thickness and output final energy"<<endl;
 	cin>>fileName;
 	
 	ofstream output;
@@ -161,7 +176,7 @@ int main(int argc, char* argv[])
 	//then write the array of x values
 	output.write(reinterpret_cast<char*>(thArray),1000*sizeof(float));
 	//then write the array of y values
-	output.write(reinterpret_cast<char*>(enArr),1000*sizeof(float));
+	output.write(reinterpret_cast<char*>(enArrForOutput),1000*sizeof(float));
 	//then write the grid of output values
 	output.write(reinterpret_cast<char*>(finalEns),1000000*sizeof(float));
 	
@@ -170,17 +185,17 @@ int main(int argc, char* argv[])
 	//now calculate the final energy vs thickness grid (with the initial energies as grid points)
 	{
 	cout<<"Calculating final to initial energy grid.\nAcross the thickness range: "<<minTh<<"mg/cm2 to "<<maxTh<<"mg/cm^2"<<endl;
-	float th = thArray[0];
+	double th = thArray[0];
 	cout<<"Currently at: Thickness = "<<thArray[0]<<" mg/cm2"<<endl;
 	for(int j=0; j<1000; ++j)
 	{
 		int index = j;
-		float en = enArr[j];
+		float en = enArrForOutput[j];
 		double thickness=0.0;
 		double deltaEn=0.0;
 		while( (thickness<th) )
 		{
-			double dedx = eLoss((en+deltaEn));
+			double dedx = eLoss.Eval((en+deltaEn));
 			double enLost = dedx*thStep;
 			deltaEn += enLost;
 			thickness += thStep;
@@ -196,12 +211,12 @@ int main(int argc, char* argv[])
 		{
 			int index = i*1000+j;
 			int index2 = (index-1000);
-			float en = finalEns[index2];
-			float thickness=thArray[i-1];
+			double en = finalEns[index2];
+			double thickness=thArray[i-1];
 			double deltaEn=0.0;
 			while( (thickness<th) )
 			{
-				double dedx = eLoss((en+deltaEn));
+				double dedx = eLoss.Eval((en+deltaEn));
 				double enLost = dedx*thStep;
 				deltaEn += enLost;
 				thickness += thStep;
@@ -212,7 +227,7 @@ int main(int argc, char* argv[])
 	}
 	
 	//now write out the final energy binary grid file
-	cout<<"Give the filename for the file that has final energy vs thickness"<<endl;
+	cout<<"Give the name for the file that will take final energy and thickness and output starting energy"<<endl;
 	cin>>fileName;
 	
 	output.open(fileName.c_str(), std::fstream::out | std::fstream::binary);
@@ -223,7 +238,7 @@ int main(int argc, char* argv[])
 	//then write the array of x values
 	output.write(reinterpret_cast<char*>(thArray),1000*sizeof(float));
 	//then write the array of y values
-	output.write(reinterpret_cast<char*>(enArr),1000*sizeof(float));
+	output.write(reinterpret_cast<char*>(enArrForOutput),1000*sizeof(float));
 	//then write the grid of output values
 	output.write(reinterpret_cast<char*>(initEns),1000000*sizeof(float));
 	output.close();
@@ -233,6 +248,7 @@ int main(int argc, char* argv[])
 	delete[] thArray;
 	delete[] finalEns;
 	delete[] initEns;
+	delete[] enArrForOutput;
 	
 	return 0;
 }

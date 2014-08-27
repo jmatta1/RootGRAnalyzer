@@ -1,4 +1,7 @@
-#This make file compiles the tester for the energy loss calculation system
+#This make file compiles the energy loss interpolation grid calculator
+
+ROOTLIBS=$(shell root-config --nonew --libs) -L$(shell root-config --nonew --libdir) -lMathMore
+ROOTINCS=-I$(shell root-config --nonew --incdir)
 
 target:debug
 
@@ -46,12 +49,10 @@ debug opt0 opt1 opt2 opt3 dopt1 dopt2 dopt3:
 	$(MAKE) OUTDIR=obj_$@ FLAGS="$(FLAGS) $(BASE_FLAGS)" obj_$@/enLossCalc
 	cp obj_$@/enLossCalc ./enLossCalc
 
-$(OUTDIR)/enLossCalc: $(OUTDIR)/main.o $(OUTDIR)/cubicspline.o
-	g++ $(FLAGS) $^ -o $@
+$(OUTDIR)/enLossCalc: $(OUTDIR)/main.o
+	g++ $(FLAGS) $^ -o $@ $(ROOTLIBS)
 
-$(OUTDIR)/main.o: ./main.cpp ./cubicspline.h
-	g++ $(FLAGS) -c $< -o $@
+$(OUTDIR)/main.o: ./main.cpp
+	g++ $(FLAGS) -c $< -o $@ $(ROOTLIBS) $(ROOTINCS)
 
-$(OUTDIR)/cubicspline.o: ./cubicspline.cpp ./cubicspline.h
-	g++ $(FLAGS) -c $< -o $@
 

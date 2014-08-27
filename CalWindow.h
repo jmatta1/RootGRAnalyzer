@@ -1672,9 +1672,12 @@ void CalWindow::displaySubSpec(const UpdateCallType& tp)
 		gApplication->Terminate(0);
 		return;
 	}
-	int minBin = subSpec->GetXaxis()->FindBin(-0.25);
-	int maxBin = subSpec->GetXaxis()->FindBin(0.25);
+	int minBin = subSpec->GetYaxis()->FindBin(-0.10);
+	int maxBin = subSpec->GetYaxis()->FindBin(0.10);
+	double temp = subSpec->GetEntries();
+	
 	cutSpec = subSpec->ProjectionX("angleCutProjection",minBin, maxBin);
+	cout<<minBin<<"  "<<maxBin<<"  "<<temp<<"  "<<cutSpec->ComputeIntegral()<<endl;
 	cutSpec->Draw();
 	sclToggle=true;
 	gPad->SetLogy(1);
