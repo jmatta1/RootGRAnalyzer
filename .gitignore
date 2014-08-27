@@ -1,4 +1,5 @@
 *.root
+*.root_bk
 *.csv
 init.C
 utils.C
