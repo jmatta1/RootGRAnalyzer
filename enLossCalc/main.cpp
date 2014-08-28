@@ -10,21 +10,21 @@ using std::getline;
 using std::cout;
 using std::cin;
 using std::endl;
-#include"Math/Interpolator.h"
+#include"cubicspline.h"
 
 int main(int argc, char* argv[])
 {
-	double thStep = 0.0001;//ie 100 ng/cm2 chunks for the numerical integrals
+	float thStep = 0.0001;//ie 100 ng/cm2 chunks for the numerical integrals
 	
-	double minEn;
-	double maxEn;
+	float minEn;
+	float maxEn;
 	cout<<"Enter the Minimum energy expected (MeV)"<<endl;
 	cin>>minEn;
 	minEn = minEn-10.0;
 	cout<<"Enter the Beam Energy (MeV)"<<endl;
 	cin>>maxEn;
 	maxEn = maxEn + 10.0;
-	double de = ((maxEn-minEn)/999.0);
+	float de = ((maxEn-minEn)/999.0);
 	ofstream enOutput;
 	enOutput.open("./enList.txt", std::fstream::out);
 	int minBnd = (1000.0*(minEn));
@@ -62,8 +62,8 @@ int main(int argc, char* argv[])
 		getline(input, line);
 	}
 	//arrays for holding energies and de/dx
-	double* enArr = new double[1000];
-	double* deArr = new double[1000];
+	float* enArr = new float[1000];
+	float* deArr = new float[1000];
 	//read the next 1000 lines for the energy losses
 	for(int i=0; i<1000; ++i)
 	{
@@ -82,24 +82,23 @@ int main(int argc, char* argv[])
 		string elELoss = tempLine.substr(0,ind+1);
 		string nELoss = tempLine.substr(ind+1);
 		conv.str(elELoss);
-		double temp;
+		float temp;
 		conv>>temp;
 		conv.clear();
 		//get the nuclear energy loss
 		conv.str(nELoss);
-		double temp2;
+		float temp2;
 		conv>>temp2;
 		conv.clear();
 		//set the energy loss equal to the sum of the electronic and nuclear components
 		deArr[i] = (temp+temp2);
 	}
 	input.close();
-	ROOT::Math::Interpolator eLoss(1000);
-	eLoss.SetData(1000,enArr,deArr);
+	CubicSpline eLoss(enArr, deArr, 1000, 0.0, 0.0, BothNatural);
 	//CubicSpline eLoss(enArr,deArr,1000,0.0,0.0,BothNatural);
 	//setup and do the integrals
-	double minTh;
-	double maxTh;
+	float minTh;
+	float maxTh;
 	cout<<"Please give the thickness of the thinnest target in mg/cm^2"<<endl;
 	cin>>minTh;
 	minTh = minTh/4.0;
@@ -107,7 +106,7 @@ int main(int argc, char* argv[])
 	cin>>maxTh;
 	maxTh = maxTh*4.0;
 	
-	double dt = ((maxTh-minTh)/999.0);
+	float dt = ((maxTh-minTh)/999.0);
 	
 	float* thArray = new float[1000];
 	
@@ -118,20 +117,20 @@ int main(int argc, char* argv[])
 	//first calculate the initial energy vs thickness grid (with the final energies as grid points)
 	{
 	cout<<"Calculating initial to final energy grid.\nAcross the thickness range: "<<minTh<<"mg/cm2 to "<<maxTh<<"mg/cm^2"<<endl;
-	double th = minTh;
+	float th = minTh;
 	thArray[0]=th;
 	cout<<"Currently at: Thickness = "<<thArray[0]<<" mg/cm2"<<endl;
 	for(int j=0; j<1000; ++j)
 	{
 		int index = j;
-		double en = enArrForOutput[j];
-		double thickness=0.0;
-		double deltaEn=0.0;
+		float en = enArrForOutput[j];
+		float thickness=0.0;
+		float deltaEn=0.0;
 		while( (thickness<th) )
 		{
-			double dedx = eLoss.Eval((en-deltaEn));
+			float dedx = eLoss((en-deltaEn));
 			//cout<<(en-deltaEn)<<endl;
-			double enLost = dedx*thStep;
+			float enLost = dedx*thStep;
 			deltaEn += enLost;
 			thickness += thStep;
 		}
@@ -147,13 +146,13 @@ int main(int argc, char* argv[])
 		{
 			int index = i*1000+j;
 			int index2 = (index-1000);
-			double en = finalEns[index2];
-			double thickness=thArray[i-1];
-			double deltaEn=0.0;
+			float en = finalEns[index2];
+			float thickness=thArray[i-1];
+			float deltaEn=0.0;
 			while( (thickness<th) )
 			{
-				double dedx = eLoss.Eval((en-deltaEn));
-				double enLost = dedx*thStep;
+				float dedx = eLoss((en-deltaEn));
+				float enLost = dedx*thStep;
 				deltaEn += enLost;
 				thickness += thStep;
 			}
@@ -184,18 +183,18 @@ int main(int argc, char* argv[])
 	//now calculate the final energy vs thickness grid (with the initial energies as grid points)
 	{
 	cout<<"Calculating final to initial energy grid.\nAcross the thickness range: "<<minTh<<"mg/cm2 to "<<maxTh<<"mg/cm^2"<<endl;
-	double th = thArray[0];
+	float th = thArray[0];
 	cout<<"Currently at: Thickness = "<<thArray[0]<<" mg/cm2"<<endl;
 	for(int j=0; j<1000; ++j)
 	{
 		int index = j;
 		float en = enArrForOutput[j];
-		double thickness=0.0;
-		double deltaEn=0.0;
+		float thickness=0.0;
+		float deltaEn=0.0;
 		while( (thickness<th) )
 		{
-			double dedx = eLoss.Eval((en+deltaEn));
-			double enLost = dedx*thStep;
+			float dedx = eLoss((en+deltaEn));
+			float enLost = dedx*thStep;
 			deltaEn += enLost;
 			thickness += thStep;
 		}
@@ -210,13 +209,13 @@ int main(int argc, char* argv[])
 		{
 			int index = i*1000+j;
 			int index2 = (index-1000);
-			double en = finalEns[index2];
-			double thickness=thArray[i-1];
-			double deltaEn=0.0;
+			float en = finalEns[index2];
+			float thickness=thArray[i-1];
+			float deltaEn=0.0;
 			while( (thickness<th) )
 			{
-				double dedx = eLoss.Eval((en+deltaEn));
-				double enLost = dedx*thStep;
+				float dedx = eLoss((en+deltaEn));
+				float enLost = dedx*thStep;
 				deltaEn += enLost;
 				thickness += thStep;
 			}
