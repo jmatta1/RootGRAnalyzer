@@ -48,7 +48,6 @@ using std::ios_base;
 //my includes
 #include"guiSupport.h"
 #include"BasicCSDialog.h"
-#include"bicubicinterp.h"
 
 enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs, BasicCSInfoSimple, BasicCSInfoPerRun, ExSpecs};
 enum UpdateCallType{ Initial, Normal, Final};
@@ -2094,9 +2093,9 @@ void MainWindow::getCSByExCuts()
 		parseBinFileLine(line, runBins );
 		getline(input, line);
 		++count;
+		//now create two 2D histograms with the appropriate angle and energy bins
+		//these will hold the background and the 
 	}
-	logStrm<<"\nRun data has been loaded";
-	pushToLog();
 }
 
 /******************************************
