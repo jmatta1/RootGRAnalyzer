@@ -10,7 +10,6 @@ using std::getline;
 using std::cout;
 using std::cin;
 using std::endl;
-#include"cubicspline.h"
 #include"Math/Interpolator.h"
 
 int main(int argc, char* argv[])
