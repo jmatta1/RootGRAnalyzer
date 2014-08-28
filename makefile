@@ -1,6 +1,9 @@
 
-ROOTLIBS=$(shell root-config --nonew --libs) -L$(shell root-config --nonew --libdir) -lMathMore
-ROOTINCS=-I$(shell root-config --nonew --incdir)
+LIBS=$(shell root-config --nonew --libs) -L$(shell root-config --nonew --libdir)
+INCS=-I$(shell root-config --nonew --incdir)
 
 calApply: calApply.cpp bicubicinterp.h guiSupport.h
-	g++ calApply.cpp $(ROOTINCS) $(ROOTLIBS) -o calApply
+	g++ calApply.cpp $(INCS) $(LIBS) -o calApply
+
+clean:
+	-rm calApply
