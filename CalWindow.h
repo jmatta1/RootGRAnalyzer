@@ -1677,7 +1677,6 @@ void CalWindow::displaySubSpec(const UpdateCallType& tp)
 	double temp = subSpec->GetEntries();
 	
 	cutSpec = subSpec->ProjectionX("angleCutProjection",minBin, maxBin);
-	cout<<minBin<<"  "<<maxBin<<"  "<<temp<<"  "<<cutSpec->ComputeIntegral()<<endl;
 	cutSpec->Draw();
 	sclToggle=true;
 	gPad->SetLogy(1);
@@ -1698,8 +1697,6 @@ void CalWindow::displaySubSpec(const UpdateCallType& tp)
 	}
 	
 	whiteBoard->Update();
-	
-	//TODO, handle passing between runs
 	
 	//update the state information
 	updateStateInfo();
