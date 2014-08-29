@@ -209,7 +209,7 @@ int main(int argc, char* argv[])
 		{
 			int index = i*1000+j;
 			int index2 = (index-1000);
-			float en = finalEns[index2];
+			float en = initEns[index2];
 			float thickness=thArray[i-1];
 			float deltaEn=0.0;
 			while( (thickness<th) )
