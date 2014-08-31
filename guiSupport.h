@@ -78,10 +78,11 @@ struct CalDataLine
 
 struct BinData
 {
+	BinData():edges(NULL), runNum(-1), numBins(0){}
+	~BinData(){if(edges!=NULL){delete edges;}}
 	int runNum;
 	int numBins;
-	float* lowEdges;
-	float* highEdges;
+	float* edges;
 };
 
 inline void swapDoubles(double& first, double& second)
