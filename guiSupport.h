@@ -78,7 +78,7 @@ struct CalDataLine
 
 struct BinData
 {
-	BinData():edges(NULL), runNum(-1), numBins(0){}
+	BinData():runNum(-1), numBins(0), edges(NULL){}
 	~BinData(){if(edges!=NULL){delete edges;}}
 	int runNum;
 	int numBins;
