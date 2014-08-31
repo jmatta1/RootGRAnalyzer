@@ -43,6 +43,7 @@ using std::ios_base;
 #include<TMath.h>
 #include<TGTextView.h>
 #include<TGSplitter.h>
+#include<TApplication.h>
 
 
 //my includes
@@ -113,7 +114,7 @@ public:
 private:
 	//some private helper functions
 	void parseRunFileLine(const string& line, RunData& tempData);
-	int parseBinFileLine(const string& line, float* lowArray, float* highArray);
+	void parseBinFileLine(const string& line, BinData& tempData);
 	void pushToLog();
 	bool checkUpToRunData();
 	bool checkUpToMainFile();
@@ -1072,8 +1073,6 @@ void MainWindow::showPIDCut()
 	updateDisplay(Initial);
 }
 
-
-
 void MainWindow::getBGCuts()
 {
 	if(!checkUpToAuxFile())
@@ -1611,14 +1610,17 @@ void MainWindow::makeEnCalSpecs()
 				//now test for the PID cut as everything else has that
 				if( 1 == (pidCut->IsInside(pi2,pi1)) )
 				{
+					//cout<<"Have PID ";
 					//test to see if it is in the background region
 					if( (bgPts[0]<yfp && yfp<bgPts[1]) || (bgPts[2]<yfp && yfp<bgPts[3]) )
 					{
+						//cout<<"In BG"<<endl;
 						//increment the scaled bg spectrum using the scaling factor as the weight
 						scaledBGHist->Fill(ex,theta,bgNorm);
 					}//otherwise test if we are in the true region
 					else if( bgPts[1]<=yfp && yfp<=bgPts[2] )
 					{
+						//cout<<"In true+BG"<<endl;
 						//increment the tr+bg spectrum
 						trHist->Fill(ex,theta);
 					}
@@ -2084,18 +2086,173 @@ void MainWindow::getCSByExCuts()
 		return;
 	}
 	input.seekg(0,ios_base::beg);
+	
+	logStrm<<"\nGive the file name to save this cross-section data to";
+	pushToLog();
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = csvDataType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	temp = string(fileInfo.fFilename);
+	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
+	{
+		temp.append(".csv");
+	}
+	directory = fileInfo.fIniDir;
+	
+	ofstream output;
+	output.open(temp.c_str());
+	output<<"Run Number, Angle, En Cent1, cts1, cts err1, Xs1, Xs err1, En Cent2, cts2, cts err2, Xs2, Xs err2, ..."<<endl;
 	//now read line by line to get the run data
 	getline(input, line);
 	int count = 0;
-	BinData runBins;
 	while(!input.eof() && count<numRuns)
 	{
+		BinData runBins;
 		parseBinFileLine(line, runBins );
 		getline(input, line);
 		++count;
-		//now create two 2D histograms with the appropriate angle and energy bins
-		//these will hold the background and the 
+		
+		//find the run index in the run data
+		int runInd=-1;
+		for(int i=0; i<numRuns; ++i)
+		{
+			if(runBins.runNum==runs[i].runNumber)
+			{
+				runInd = i;
+				break;
+			}
+		}
+		
+		if( runInd==-1 )
+		{
+			logStrm<<"invalid run number in ex cuts file, line number: "<<count;
+			pushToLog();
+			return;
+		}
+		else if( runBins.numBins < 1 )
+		{
+			logStrm<<"Too few bins in ex cuts file, line number: "<<count;
+			pushToLog();
+			return;
+		}
+		
+		//first get the bggraph and the pid cut
+		TGraph* bgGraph = testBGGraph(runs[runInd].runNumber);
+		TCutG* pidCut = testPIDCut(runs[runInd].runNumber);
+		
+		if(bgGraph == NULL || pidCut == NULL)
+		{
+			return;
+		}
+		
+		// now do stuff with the bgGraph
+		double* bgPts = bgGraph->GetX();
+		
+		//now get the bg normalization
+		double bgNorm = calculateBGNorm(bgGraph);
+		
+		//now create the list of angle bin edges
+		float thetaMin = csBnds[runInd].minTheta;
+		float thetaMax = csBnds[runInd].maxTheta;
+		int numSegs = csBnds[runInd].thetaSegs;
+		float phiWidth = csBnds[runInd].phiWidth;
+		float delta = (thetaMax-thetaMin)/((float)numSegs);
+		float* angleEdges = new float[numSegs+1];
+		angleEdges[0]=thetaMin;
+		angleEdges[numSegs]=thetaMax;
+		for(int i=1; i<numSegs; ++i)
+		{
+			angleEdges[i] = (angleEdges[i-1]+delta);
+		}
+		//now create three 2D histograms with the appropriate angle and energy bins
+		//these will hold the background, the true + background spectra, and the subtracted spectra
+		TH2F* bg = new TH2F("h2TempBG","", runBins.numBins, runBins.edges, numSegs, angleEdges);
+		TH2F* bgTr = new TH2F("h2TempTr+BG","", runBins.numBins, runBins.edges, numSegs, angleEdges);
+		TH2F* sub = new TH2F("h2TempTr","", runBins.numBins, runBins.edges, numSegs, angleEdges);
+		
+		logStrm<<"Loading run "<<runs[runInd].runNumber<<"  "<<(count+1)<<" / "<<numRuns;
+		pushToLog();
+		
+		//now set up the branches of our tree to retrieve everything
+		TTree* tree = testExTree( runs[runInd].runNumber );
+		float theta = 0.0, ex = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
+		tree->SetBranchAddress("Thcorr",&theta);
+		tree->SetBranchAddress("Ex",&ex);
+		tree->SetBranchAddress("Yfp",&yfp);
+		tree->SetBranchAddress("Pi1",&pi1);
+		tree->SetBranchAddress("Pi2",&pi2);
+		tree->SetBranchAddress("Rayid",&rayid);
+		
+		Long64_t numEnts = (tree->GetEntries());
+		for(Long64_t i=0; i<numEnts; ++i)
+		{
+			//first get the entry
+			tree->GetEntry(i);
+			//check the rayid cut as it is applied to everything
+			if( rayid == 0)
+			{
+				//now test for the PID cut as everything else has that
+				if( 1 == (pidCut->IsInside(pi2,pi1)) )
+				{
+					//cout<<"Have PID ";
+					//test to see if it is in the background region
+					if( (bgPts[0]<yfp && yfp<bgPts[1]) || (bgPts[2]<yfp && yfp<bgPts[3]) )
+					{
+						//cout<<"In BG"<<endl;
+						//increment the scaled bg spectrum using the scaling factor as the weight
+						bg->Fill(ex,theta,bgNorm);
+					}//otherwise test if we are in the true region
+					else if( bgPts[1]<=yfp && yfp<=bgPts[2] )
+					{
+						//cout<<"In true+BG"<<endl;
+						//increment the tr+bg spectrum
+						bgTr->Fill(ex,theta);
+					}
+				}
+			}
+		}
+		
+		//now the spectra should be filled so make the subtracted spectrum
+		sub->Add(bgTr, bg, 1, -1);
+		
+		//now loop through the angle/energy bins and get the number of counts in each, then output the data
+		for(int i=1; i<(numSegs+1); ++i)
+		{//loop through angles first
+			//calculate the angle center:
+			float angle=(runs[runInd].angle + ((angleEdges[i]+angleEdges[i-1])/2.0) );
+			output<<runs[runInd].runNumber<<", "<<angle;
+			for(int j=1; j<(runBins.numBins+1); ++j)
+			{
+				float en = ((runBins.edges[i]+runBins.edges[i-1])/2.0);
+				//get the integral and its error
+				double counts = sub->GetBinContent(j,i);
+				double cntsErr = TMath::Sqrt(counts);
+				//get the cross-section and its error
+				double cs = calcCrossSection(counts, runs[runInd], delta, phiWidth);
+				double csErr = calcCrossSection(cntsErr, runs[runInd], delta, phiWidth);
+				output<<", "<<en<<", "<<counts<<", "<<cntsErr<<", "<<cs<<", "<<csErr;
+			}
+			output<<endl;
+		}
+		
+		delete tree;
+		delete[] angleEdges;
+		delete bg;
+		delete bgTr;
+		delete sub;
 	}
+	logStrm<<"Done Extracting cross-sections\n";
+	pushToLog();
 }
 
 /******************************************
@@ -3463,7 +3620,7 @@ bool MainWindow::checkUpToFrFile()
 	return true;
 }
 
-int MainWindow::parseBinFileLine(const string& line, BinData& tempData)
+void MainWindow::parseBinFileLine(const string& line, BinData& tempData)
 {
 	istringstream conv;
 	//read run number
@@ -3480,27 +3637,22 @@ int MainWindow::parseBinFileLine(const string& line, BinData& tempData)
 	conv.str(temp);
 	conv>>tempData.numBins;
 	conv.clear();
+	int numEdges = tempData.numBins+1;
 	//create the arrays to hold the bins
-	tempData.lowEdges = new float[tempData.numBins];
-	tempData.highEdges = new float[tempData.numBins];
-	//now loop through the bins
-	for(int i=0; i < tempData.numBins; ++i)
+	if(numEdges>1)
 	{
-		//read the low edge
+		tempData.edges = new float[numEdges];
+	}
+	//now loop through the bins
+	for(int i=0; i < numEdges; ++i)
+	{
+		//read the lower edges of each bin (including the one 'beyond' the last one
 		ind = tempLine.find(',');
 		temp = tempLine.substr(0,ind);
 		tempLine = tempLine.substr(ind+1);
 		conv.str(temp);
-		conv>>tempData.lowEdges[i];
+		conv>>tempData.edges[i];
 		conv.clear();
-		
-		//read the high edge
-		ind = tempLine.find(',');
-		temp = tempLine.substr(0,ind);
-		tempLine = tempLine.substr(ind+1);
-		conv.str(temp);
-		conv>>tempData.lowEdges[i];
-		conv.clear();	
 	}
 	
 }
