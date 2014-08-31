@@ -2036,7 +2036,7 @@ void MainWindow::getCSByExCuts()
 	static TString directory(".");
 	TGFileInfo fileInfo;
 	fileInfo.SetMultipleSelection(false);
-	fileInfo.fFileTypes = combRootFileType;
+	fileInfo.fFileTypes = csvDataType;
 	fileInfo.fIniDir = StrDup(directory);
 	
 	//make the open file dialog
@@ -2049,9 +2049,9 @@ void MainWindow::getCSByExCuts()
 	}
 	//make sure the file name ends with the extension
 	string temp = string(fileInfo.fFilename);
-	if( (temp.size()-11) != ( temp.rfind("_merge.root") ) )
+	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
 	{
-		temp.append("_merge.root");
+		temp.append(".csv");
 	}
 	directory = fileInfo.fIniDir;
 	ifstream input;
@@ -2087,7 +2087,7 @@ void MainWindow::getCSByExCuts()
 	}
 	input.seekg(0,ios_base::beg);
 	
-	logStrm<<"\nGive the file name to save this cross-section data to";
+	logStrm<<"\nGive the file name to save this cross-section data to:\n\n";
 	pushToLog();
 	fileInfo.SetMultipleSelection(false);
 	fileInfo.fFileTypes = csvDataType;
@@ -2111,7 +2111,7 @@ void MainWindow::getCSByExCuts()
 	
 	ofstream output;
 	output.open(temp.c_str());
-	output<<"Run Number, Angle, En Cent1, cts1, cts err1, Xs1, Xs err1, En Cent2, cts2, cts err2, Xs2, Xs err2, ..."<<endl;
+	output<<"Run Number, Angle, En Cent1, En Width1, cts1, cts err1, Xs1, Xs err1, En Cent2, En Width2, cts2, cts err2, Xs2, Xs err2, ..."<<endl;
 	//now read line by line to get the run data
 	getline(input, line);
 	int count = 0;
@@ -2180,7 +2180,7 @@ void MainWindow::getCSByExCuts()
 		TH2F* bgTr = new TH2F("h2TempTr+BG","", runBins.numBins, runBins.edges, numSegs, angleEdges);
 		TH2F* sub = new TH2F("h2TempTr","", runBins.numBins, runBins.edges, numSegs, angleEdges);
 		
-		logStrm<<"Loading run "<<runs[runInd].runNumber<<"  "<<(count+1)<<" / "<<numRuns;
+		logStrm<<"Loading run "<<runs[runInd].runNumber<<"  "<<(count)<<" / "<<numRuns;
 		pushToLog();
 		
 		//now set up the branches of our tree to retrieve everything
@@ -2194,10 +2194,11 @@ void MainWindow::getCSByExCuts()
 		tree->SetBranchAddress("Rayid",&rayid);
 		
 		Long64_t numEnts = (tree->GetEntries());
-		for(Long64_t i=0; i<numEnts; ++i)
+		
+		for(Long64_t treeIndex=0; treeIndex<numEnts; ++treeIndex)
 		{
 			//first get the entry
-			tree->GetEntry(i);
+			tree->GetEntry(treeIndex);
 			//check the rayid cut as it is applied to everything
 			if( rayid == 0)
 			{
@@ -2233,14 +2234,15 @@ void MainWindow::getCSByExCuts()
 			output<<runs[runInd].runNumber<<", "<<angle;
 			for(int j=1; j<(runBins.numBins+1); ++j)
 			{
-				float en = ((runBins.edges[i]+runBins.edges[i-1])/2.0);
+				float en = ((runBins.edges[j]+runBins.edges[j-1])/2.0);
+				float enWidth = (runBins.edges[j]-runBins.edges[j-1]);
 				//get the integral and its error
 				double counts = sub->GetBinContent(j,i);
 				double cntsErr = TMath::Sqrt(counts);
 				//get the cross-section and its error
 				double cs = calcCrossSection(counts, runs[runInd], delta, phiWidth);
 				double csErr = calcCrossSection(cntsErr, runs[runInd], delta, phiWidth);
-				output<<", "<<en<<", "<<counts<<", "<<cntsErr<<", "<<cs<<", "<<csErr;
+				output<<", "<<en<<", "<<enWidth<<", "<<counts<<", "<<cntsErr<<", "<<cs<<", "<<csErr;
 			}
 			output<<endl;
 		}
