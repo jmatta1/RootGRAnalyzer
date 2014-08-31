@@ -285,7 +285,9 @@ void applyEnergyCal(RunData* runs, int numRuns)
 	inFile.open(interpName.c_str(),std::fstream::in | std::fstream::binary);
 	inFile.read(reinterpret_cast<char*>(sizesBuff),2*sizeof(int));//technically we do not really need these since both are always 1000
 	inFile.read(reinterpret_cast<char*>(xVal),sizeof(float)*1000);
+	cout<<"Min thickness is: "<<xVal[0]<<" Max thickness is: "<<xVal[sizesBuff[0]-1]<<endl;
 	inFile.read(reinterpret_cast<char*>(yVal),sizeof(float)*1000);
+	cout<<"Min energy is: "<<yVal[0]<<" Max energy is: "<<yVal[sizesBuff[1]-1]<<endl;
 	inFile.read(reinterpret_cast<char*>(zVal),sizeof(float)*1000000);
 	inFile.close();
 	
@@ -360,7 +362,18 @@ void applyEnergyCal(RunData* runs, int numRuns)
 			return;
 		}
 		//cout<<"At point 1"<<endl;
-		string treeName = makeExTreeName(runs[runInd].runNumber);
+		TTree* test = retrieveExTree(runs[runInd].runNumber);
+		string treeName =makeExTreeName(runs[runInd].runNumber);
+		if(test!=NULL)
+		{
+			delete test;
+			test=NULL;
+			ostringstream nameBuilder;
+			nameBuilder<<treeName<<";*";
+			string toBeDeleted = nameBuilder.str();
+			frFile->Delete(toBeDeleted.c_str());
+			cout<<"Deleted original excitation friend tree so we can build a replacement"<<endl;
+		}
 		TTree* exTree = new TTree(treeName.c_str(),treeName.c_str());
 		//put the polynomial parameters for this run into quick variables
 		float a = calDat.a;
@@ -429,6 +442,7 @@ void applyEnergyCal(RunData* runs, int numRuns)
 			//cout<<"thTrav: "<<thTrav<<" fpKe: "<<fpKe<<endl;
 			//scattered KE
 			float scKe = interpFVI->getVal(thTrav, fpKe);
+			//cout<<fpKe<<"  |  "<<thTrav<<"  |  "<<scKe<<"  |  ";
 			//scattered total energy
 			float scEn = scKe + pM;
 			//scattered momentum
@@ -437,6 +451,7 @@ void applyEnergyCal(RunData* runs, int numRuns)
 			float sqrtTerm = (constTerm - partTerm1*scEn - partTerm2*scEn + partTerm3*scMom*costh);
 			//finally, the excitation energy
 			ex = TMath::Sqrt(sqrtTerm) - tM;
+			//cout<<ex<<endl;
 			/*cout<<"Angle: "<<radians*180.0/3.1415926<<" thickness: "<<thTrav<<" Xfp: "<<xfp<<" fp Momentum: "<<fpMom<<endl;
 			cout<<"fp Kinetic En: "<<fpKe<<" scattered Kinetic En: "<<scKe<<" excitation energy: "<<ex<<endl;
 			if(j==20)
