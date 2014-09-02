@@ -30,15 +30,9 @@ int main(int argc, char* argv[])
 	int minBnd = (1000.0*(minEn));
 	int maxBnd = (1000.0*(maxEn));
 	int delta = (1000.0*de);
-	for(int i = minBnd; i<=maxBnd; i+=delta)
-	{
-		enOutput<<i<<endl;
-	}
 	
 	float* enArrForOutput = new float[1000];
-	minEn-=10.0;
-	maxEn-=10.0;
-	de = ((maxEn-minEn)/999.0);
+	de = ((maxEn-minEn)/1000.0);
 	int count = 0;
 	for(float i=minEn; i<=maxEn; i+=de)
 	{
