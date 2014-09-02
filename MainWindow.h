@@ -2225,7 +2225,7 @@ void MainWindow::getCSByExCuts()
 		
 		//now the spectra should be filled so make the subtracted spectrum
 		sub->Add(bgTr, bg, 1, -1);
-		
+		int negCntr = 0;
 		//now loop through the angle/energy bins and get the number of counts in each, then output the data
 		for(int i=1; i<(numSegs+1); ++i)
 		{//loop through angles first
@@ -2238,6 +2238,11 @@ void MainWindow::getCSByExCuts()
 				float enWidth = (runBins.edges[j]-runBins.edges[j-1]);
 				//get the integral and its error
 				double counts = sub->GetBinContent(j,i);
+				if( counts <0)
+				{
+					counts = 0;
+					++negCntr;
+				}
 				double cntsErr = TMath::Sqrt(counts);
 				//get the cross-section and its error
 				double cs = calcCrossSection(counts, runs[runInd], delta, phiWidth);
@@ -2245,6 +2250,8 @@ void MainWindow::getCSByExCuts()
 				output<<", "<<en<<", "<<enWidth<<", "<<counts<<", "<<cntsErr<<", "<<cs<<", "<<csErr;
 			}
 			output<<endl;
+			logStrm<<"Zeroed: "<<negCntr<<" negative bins"<<endl;
+			pushToLog();
 		}
 		
 		delete tree;
