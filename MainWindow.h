@@ -2250,10 +2250,9 @@ void MainWindow::getCSByExCuts()
 				output<<", "<<en<<", "<<enWidth<<", "<<counts<<", "<<cntsErr<<", "<<cs<<", "<<csErr;
 			}
 			output<<endl;
-			logStrm<<"Zeroed: "<<negCntr<<" negative bins"<<endl;
-			pushToLog();
 		}
-		
+		logStrm<<"Zeroed: "<<negCntr<<" negative bins"<<endl;
+		pushToLog();
 		delete tree;
 		delete[] angleEdges;
 		delete bg;
