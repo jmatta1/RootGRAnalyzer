@@ -1585,9 +1585,9 @@ void MainWindow::makeEnCalSpecs()
 		string exSubHistTitle = titler.str();
 		
 		//make the actual histograms to hold things
-		TH2F* trHist = new TH2F("tempTrHist", "tempTrHist", 600, -10, 50, 300, -3, 3);
-		TH2F* scaledBGHist = new TH2F("tempBgHist", "tempBgHist",  600, -10, 50, 300, -3, 3);
-		TH2F* subHist = new TH2F(exSubHistName.c_str(), exSubHistTitle.c_str(),  600, -10, 50, 300, -3, 3);
+		TH2F* trHist = new TH2F("tempTrHist", "tempTrHist", 600, -5, 55, 300, -3, 3);
+		TH2F* scaledBGHist = new TH2F("tempBgHist", "tempBgHist",  600, -5, 55, 300, -3, 3);
+		TH2F* subHist = new TH2F(exSubHistName.c_str(), exSubHistTitle.c_str(),  600, -5, 55, 300, -3, 3);
 		
 		//now set up the branches of our new tree to retrieve everything
 		float theta = 0.0, ex = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
