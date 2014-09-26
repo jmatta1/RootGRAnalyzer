@@ -1237,10 +1237,17 @@ float CalWindow::invertCalFunc(int i)
 		{
 			position = (((-1.0)*b+TMath::Sqrt(b*b-4.0*a*c))/(2.0*a));
 		}
-		/*if(position>1000.0 || -1000.0>position)
+		if(position>2000 || position<-2000)
 		{
-			position = (((-1.0)*b-TMath::Sqrt(b*b-4.0*a*c))/(2.0*a));
-		}*/
+			if(a<0)
+			{
+				position = (((-1.0)*b+TMath::Sqrt(b*b-4.0*a*c))/(2.0*a));
+			}
+			else
+			{
+				position = (((-1.0)*b-TMath::Sqrt(b*b-4.0*a*c))/(2.0*a));
+			}
+		}
 		cell.str("");
 		cell.clear();
 		cell<<position;
