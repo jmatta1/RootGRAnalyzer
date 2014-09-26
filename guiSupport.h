@@ -18,7 +18,7 @@ const char *calDataType[] = { "Calibration Data",      "*.csv",
 
 const char *initMessage="Welcome to the Notre Dame Giant Resonance Analysis GUI";
 const char *calInitMessage="Welcome to the Notre Dame Focal Plane Calibration GUI";
-const char *calInitMessage="Welcome to the Notre Dame Aberration Correction GUI";
+const char *corInitMessage="Welcome to the Notre Dame Aberration Correction GUI";
 
 const char *calColNames[] = { "Ex", "P_fp", "Calib. Xfp", "Assigned Cent.", "Calib. P_fp",
 											"P_fp Resid", "Fit Selection", "", ""};
