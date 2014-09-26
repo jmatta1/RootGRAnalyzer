@@ -1680,7 +1680,6 @@ void CalWindow::displaySubSpec(const UpdateCallType& tp)
 	}
 	int minBin = subSpec->GetYaxis()->FindBin(-0.10);
 	int maxBin = subSpec->GetYaxis()->FindBin(0.10);
-	double temp = subSpec->GetEntries();
 	
 	cutSpec = subSpec->ProjectionX("angleCutProjection",minBin, maxBin);
 	cutSpec->Draw();
