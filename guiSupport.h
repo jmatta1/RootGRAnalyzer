@@ -27,6 +27,30 @@ const char *corColNames[] = { "Ex", "Assigned Cent.", "", "Cent Sel", ""};
 
 const char *calFuncs[] = { "pol1", "pol2" };
 
+const int exOrder=4;
+const int thOrder=4;
+const int numParams=25;
+
+double correctionFunction(double *x, double *par)
+{
+	double result=0.0;
+	double tempEx=1.0;
+	double tempTh=1.0;
+	int parInd=0;
+	for(int i=0; i<=exOrder; ++i)
+	{
+		tempTh=1.0;
+		for(int j=0; j<=thOrder; ++j)
+		{
+			result += (par[parInd]*tempEx*tempTh);
+			++parInd;
+			tempTh*=x[1];
+		}
+		tempEx*=x[0];
+	}
+	return result;
+}
+
 struct RunData
 {
 	int runNumber;
