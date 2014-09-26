@@ -57,7 +57,6 @@ using std::ios_base;
 #include"bicubicinterp.h"
 #include"guiSupport.h"
 
-//TODO, handle passing between runs for the calibration infor and the like
 //TODO, modify the widths of the text entries
 //TODO, fix up deconstructor
 //TODO, fix up reset function
