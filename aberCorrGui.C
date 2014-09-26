@@ -1,11 +1,11 @@
 #include"abCorWindow.h"
 
-AberationCorrectionWindow* ACGUI=NULL;
+AberrationCorrectionWindow* ACGUI=NULL;
 void makeGUI()
 {
 	if(ACGUI==NULL)
 	{
-		ACGUI = new AberationCorrectionWindow(gClient->GetRoot(),500,400);
+		ACGUI = new AberrationCorrectionWindow(gClient->GetRoot(),500,400);
 	}
 	else
 	{
