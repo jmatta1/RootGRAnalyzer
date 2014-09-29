@@ -184,7 +184,7 @@ private:
 	
 	//analysis stuff
 	RunData* runs;
-	float* tempPeaks;
+	double* tempPeaks;
 	int numTempPeaks;
 	StateData** states;
 	bool statesSet;
@@ -935,7 +935,7 @@ void AberrationCorrectionWindow::readStateData()
 		}
 	}
 	//allocate the temp peaks array now that we know how many states there are
-	tempPeaks = new float[numStates];
+	tempPeaks = new double[numStates];
 	//jump back to the beginning
 	input.clear();
 	input.seekg(0,ios_base::beg);
@@ -1129,10 +1129,15 @@ void AberrationCorrectionWindow::getFitData()
 	for(int i=0; i<numPeaks; ++i)
 	{
 		tempPeaks[i] = values[3*i+1];
+	}
+	sortDoubles(tempPeaks, numTempPeaks);
+	for(int i=0; i<numPeaks; ++i)
+	{
 		ostringstream namer;
 		namer<<"Cent: "<<tempPeaks[i];
 		tempFitBox->AddEntry(namer.str().c_str(),i+1);
 	}
+	tempFitBox->Select(0);
 }
 
 void AberrationCorrectionWindow::transferFit()
@@ -1147,6 +1152,8 @@ void AberrationCorrectionWindow::removeFit()
 
 void AberrationCorrectionWindow::getPeakFindResults()
 {
+	if(!checkUpToStates())
+	{return;}
 	TList* funcList = cutSpec->GetListOfFunctions();
 	TPolyMarker *foundPeaks = reinterpret_cast<TPolyMarker*>(funcList->FindObject("TPolyMarker"));
 	if(foundPeaks==NULL)
@@ -1157,6 +1164,7 @@ void AberrationCorrectionWindow::getPeakFindResults()
 	}
 	double* xList=foundPeaks->GetX();
 	numTempPeaks = foundPeaks->GetN();
+	cout<<numTempPeaks<<endl<<endl;
 	if(numTempPeaks==0)
 	{
 		logStrm<<"No peaks to get"<<endl;
@@ -1165,13 +1173,20 @@ void AberrationCorrectionWindow::getPeakFindResults()
 	}
 	//otherwise clear the temp fit combo box
 	tempFitBox->RemoveEntries(1,numStates+10);
-	for(int i=0; i<numPeaks; ++i)
+	for(int i=0; i<numTempPeaks; ++i)
 	{
 		tempPeaks[i] = xList[i];
+		cout<<tempPeaks[i]<<endl;
+	}
+	sortDoubles(tempPeaks, numTempPeaks);
+	for(int i=0; i<numTempPeaks; ++i)
+	{
+		cout<<tempPeaks[i]<<endl;
 		ostringstream namer;
 		namer<<"Cent: "<<tempPeaks[i];
 		tempFitBox->AddEntry(namer.str().c_str(),i+1);
 	}
+	tempFitBox->Select(0);
 }
 
 void AberrationCorrectionWindow::performPeakFind()
