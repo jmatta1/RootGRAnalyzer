@@ -124,6 +124,13 @@ struct BinData
 	float* edges;
 };
 
+inline void swapDoubles(double& first, double& second)
+{
+	double swap = first;
+	first = second;
+	second = swap;
+}
+
 void sortDoubles(double* arr, int size)
 {
 	// comb sort
@@ -152,13 +159,6 @@ void sortDoubles(double* arr, int size)
 	}	
 }
 /*
-
-inline void swapDoubles(double& first, double& second)
-{
-	double swap = first;
-	first = second;
-	second = swap;
-}
 
 //in place partitioning function
 int partitionDoubles(double* arr, int size)
