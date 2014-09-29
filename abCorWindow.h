@@ -63,6 +63,8 @@ using std::ios_base;
 enum UpdateCallType{ Initial, Normal, Final};
 enum WidgetNumberings{ PolOrderEntry = 0};
 
+enum {NumAngleCuts=9};
+
 TCut RayCut;
 
 class AberrationCorrectionWindow
@@ -82,6 +84,8 @@ public:
 	void assignFitToState(int stNum);
 	void unAssignFitToState(int stNum);
 	void rebinDispSpec();
+	void getPeakFindResults();
+	void performPeakFind();
 	
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -182,10 +186,8 @@ private:
 	FitData* tempFits;
 	StateData** states;
 	bool statesSet;
-	FitData** fitList;
-	int* numFits;
-	StateFit** assigns;
-	int* numAssigned;
+	CorrectionPoint** corrPts;
+	int* numPoints;
 	int numRuns;
 	int numStates;
 	TFile* mainFile;
@@ -201,6 +203,7 @@ private:
 	TH1D* cutSpec;
 	double minAngle;
 	double maxAngle;
+	int angleInd;
 
 	/************************************************
 	**GUI Declarations
@@ -276,6 +279,8 @@ private:
 	TGTextButton* useFit;
 	TGComboBox* fitListBox;
 	TGTextButton* rmFit;
+	TGTextButton* doPeakFind;
+	TGTextButton* getFoundPeaks;
 	//sequential display buttons
 	TGTextButton *prevSpec;
 	TGTextButton *nextSpec;
@@ -311,11 +316,12 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	fitDiag=NULL;
 	currBGOrder=0;
 	numPeaks=0;
-	numFits=NULL;
+	numPoints=NULL;
+	corrPts=NULL;
 	statesSet=false;
-	numAssigned=NULL;
 	maxAngle=0.05;
 	minAngle=-0.05;
+	angleInd=4;
 
 	tempFits = new FitData[5];
 
@@ -372,18 +378,22 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	//button that gets the fit data from the fit panel
 	getFit = new TGTextButton(sideBarFrame,"Get Fit Data");
 	getFit->Connect("Clicked()","AberrationCorrectionWindow",this,"getFitData()");
+	//buttons to do and retrieve peakfind info
+	doPeakFind = new TGTextButton(sideBarFrame,"Find Peaks");
+	doPeakFind->Connect("Clicked()","AberrationCorrectionWindow",this,"performPeakFind()");
+	getFoundPeaks = new TGTextButton(sideBarFrame,"Get Found Peaks");
+	getFoundPeaks->Connect("Clicked()","AberrationCorrectionWindow",this,"getPeakFindResults()");
 	//add the sidebar buttons to the sidebar frame
 	sideBarFrame->AddFrame(orderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(numPksFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(setFunc, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(doPeakFind, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(getFoundPeaks, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	/******************************************
 	** Fit Control
 	******************************************/
-	calCtrlLabel = new TGLabel(sideBarFrame, "Calib. Control");
-	sideBarFrame->AddFrame(calCtrlLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	
 	//add the combo box that holds temporary fit information
 	tempFitBox = new TGComboBox(sideBarFrame);
 	tempFitBox->AddEntry("Retrieved Fits",0);
@@ -619,34 +629,22 @@ AberrationCorrectionWindow::~AberrationCorrectionWindow()
 		states = NULL;
 	}
 	
-	if(fitList != NULL)
+	if(corrPts != NULL)
 	{
 		for(int i=0; i<numRuns; ++i)
 		{
-			if(fitList[i]!=NULL)
+			if(corrPts[i]!=NULL)
 			{
-				delete[] fitList[i];
+				delete[] corrPts[i];
 			}
 		}
-		delete[] fitList;
-		fitList = NULL;
+		delete[] corrPts;
+		corrPts = NULL;
 	}
-	if(assigns != NULL)
+	if(numPoints != NULL)
 	{
-		for(int i=0; i<numRuns; ++i)
-		{
-			if(assigns[i]!=NULL)
-			{
-				delete[] assigns[i];
-			}
-		}
-		delete[] assigns;
-		assigns = NULL;
-	}
-	if(numAssigned != NULL)
-	{
-		delete numAssigned;
-		numAssigned = NULL;
+		delete numPoints;
+		numPoints = NULL;
 	}
 	//delete fitDialog;
 	
@@ -709,17 +707,15 @@ void AberrationCorrectionWindow::readRunData()
 	//allocate the runs array
 	runs = new RunData[numRuns];
 	states = new StateData*[numRuns];
-	fitList = new FitData*[numRuns];
-	assigns = new StateFit*[numRuns];
-	numAssigned = new int[numRuns];
-	numFits = new int[numRuns];
+	corrPts = new CorrectionPoint*[numRuns];
+	numPoints = new int[NumAngleCuts*numRuns];
 	for(int i =0; i<numRuns; ++i)
 	{
 		states[i] = NULL;
-		fitList[i] = NULL;
-		assigns[i] = NULL;
-		numAssigned[i] = 0;
-		numFits[i] = 0;
+		for(int j=0; j<NumAngleCuts; ++j)
+		{
+			numPoints[i*NumAngleCuts+j]=0;
+		}
 	}
 	//now read line by line to get the run data
 	getline(input, line);
@@ -905,12 +901,11 @@ void AberrationCorrectionWindow::readStateData()
 	for(int i=0; i<numRuns; ++i)
 	{
 		states[i] = new StateData[numStates];
-		fitList[i] = new FitData[numStates];
-		assigns[i] = new StateFit[numStates];
+		corrPts[i] = new CorrectionPoint[NumAngleCuts*numStates];
 		for(int j=0; j<numStates; ++j)
 		{
-			fitList[i][j].isAssign = false;
-			assigns[i][j].isSet = false;
+			corrPts[i][j].stateIndex=-1;
+			corrPts[i][j].correctEx=-1.0;
 		}
 	}
 	//now read line by line to get the run data
@@ -1103,56 +1098,22 @@ void AberrationCorrectionWindow::getFitData()
 
 void AberrationCorrectionWindow::transferFit()
 {
-	if(!checkUpToStates())
-	{return;}
-	int id = tempFitBox->GetSelected();
-	if(id==0)
-	{
-		logStrm<<"No Fit Selected";
-		pushToLog();
-		return;
-	}
-	if(numFits[dispNum]==numStates)
-	{
-		cout<<"Too Many fits cannot add more until one is removed"<<endl;
-		return;
-	}
-	//other wise, add the fit to the various combo boxes, then update them
-	tempFitBox->Select(0);
-	tempFitBox->RemoveEntry(id);
-	fitList[dispNum][numFits[dispNum]] = tempFits[id-1];
-	++numFits[dispNum];
-	updateComboBoxes();
+
 }
 
 void AberrationCorrectionWindow::removeFit()
 {
-	if(!checkUpToStates())
-	{return;}
-	int id = fitListBox->GetSelected();
-	if(id==0)
-	{
-		logStrm<<"No Fit Selected";
-		pushToLog();
-		return;
-	}
-	
-	int ind = id-1;
-	
-	if(fitList[dispNum][ind].isAssign)
-	{
-		logStrm<<"Cannot Delete an Assigned Fit"<<endl;
-		pushToLog();
-		return;
-	}
-	//other wise, remove the fit from the list, then update the combo boxes
-	--numFits[dispNum];
-	for(int i = ind; i<numFits[dispNum]; ++i)
-	{
-		fitList[dispNum][i] = fitList[dispNum][i+1];
-	}
-	fitList[dispNum][numFits[dispNum]].isAssign = false;
-	updateComboBoxes();
+
+}
+
+void AberrationCorrectionWindow::getPeakFindResults()
+{
+
+}
+
+void AberrationCorrectionWindow::performPeakFind()
+{
+
 }
 
 /******************************************
