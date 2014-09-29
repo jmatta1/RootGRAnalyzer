@@ -52,6 +52,7 @@ using std::ios_base;
 #include<TROOT.h>
 #include<TPluginManager.h>
 #include<TList.h>
+#include<TPolyMarker.h>
 
 //my includes
 #include"bicubicinterp.h"
@@ -183,7 +184,8 @@ private:
 	
 	//analysis stuff
 	RunData* runs;
-	FitData* tempFits;
+	float* tempPeaks;
+	int numTempPeaks;
 	StateData** states;
 	bool statesSet;
 	CorrectionPoint** corrPts;
@@ -230,7 +232,9 @@ private:
 	TGVerticalFrame* messageLogFrame;//frame that only holds the message log, necessary for the resizing trick
 	TGHorizontalFrame* orderFrame;//holds the polynomial order getter stuff
 	TGHorizontalFrame* numPksFrame;//holds the number of peaks getter stuff
-	TGHorizontalFrame* iterationsFrame;//holds the iterations order getter stuff
+	TGHorizontalFrame* iterationsFrame;//holds the iterations getter stuff
+	TGHorizontalFrame* sigmaFrame;//holds the peak find width getter stuff
+	TGHorizontalFrame* sensitivityFrame;//holds the peak find width getter stuff
 	
 	//tab system for going back and forth between canvas and state info
 	TGTab *tabFrame;
@@ -265,13 +269,19 @@ private:
 	TGLabel* fitCtrlLabel;
 	TGLabel* orderLabel;
 	TGLabel* numPksLabel;
-	TGLabel* iterationsLabel;
+	TGLabel* findCtrlLabel;
 	TGLabel* calCtrlLabel;
+	TGLabel* sigmaLabel;
+	TGLabel* sensitivityLabel;
+	TGLabel* iterationsLabel;
 	
 	//action buttons
 	TGNumberEntry* bgPolOrderGetter;//used for getting the order of the polynomial background
 	TGNumberEntry* numPeaksGetter;//used for getting the number of peaks to fit
 	TGNumberEntry* iterationsGetter;//used for getting the order of the cal function
+	TGNumberEntry* sigmaGetter;//used for getting the width in stddevs for the peak find
+	TGCheckButton* methodButton;
+	TGNumberEntry* sensitivityGetter;//used for getting the sensitivity for the peak find
 	TGTextButton* setFunc;
 	TGTextButton* getFit;
 	TGTextButton* doRebin;
@@ -303,6 +313,8 @@ private:
 AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 {
 	runs=NULL;
+	tempPeaks=NULL;
+	numTempPeaks=0;
 	states=NULL;
 	numRuns=0;
 	numStates=0;
@@ -322,8 +334,6 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	maxAngle=0.05;
 	minAngle=-0.05;
 	angleInd=4;
-
-	tempFits = new FitData[5];
 
 	//sys = new TUnixSystem();
 	sys = gSystem;
@@ -353,12 +363,14 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	orderFrame = new TGHorizontalFrame(sideBarFrame, width, height);
 	numPksFrame = new TGHorizontalFrame(sideBarFrame, width, height);
 	iterationsFrame = new TGHorizontalFrame(sideBarFrame, width, height);
+	sigmaFrame = new TGHorizontalFrame(sideBarFrame, width, height);
+	sensitivityFrame = new TGHorizontalFrame(sideBarFrame, width, height);
 	
 	//create and connect the buttons in the side bar
 	/******************************************
 	** Fit Control Stuff
 	******************************************/
-	fitCtrlLabel = new TGLabel(sideBarFrame, "Fit Control");
+	fitCtrlLabel = new TGLabel(sideBarFrame, "Fit States");
 	sideBarFrame->AddFrame(fitCtrlLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	//numer entry for getting the bg order
 	bgPolOrderGetter = new TGNumberEntry( orderFrame, 1.0, 5, PolOrderEntry, TGNumberFormat::kNESInteger, 
@@ -378,34 +390,57 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	//button that gets the fit data from the fit panel
 	getFit = new TGTextButton(sideBarFrame,"Get Fit Data");
 	getFit->Connect("Clicked()","AberrationCorrectionWindow",this,"getFitData()");
+	//add the sidebar buttons to the sidebar frame
+	sideBarFrame->AddFrame(orderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(numPksFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(setFunc, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(getFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	
+	//set the stuff that gets the pk find params
+	findCtrlLabel = new TGLabel(sideBarFrame, "Find States");
+	sideBarFrame->AddFrame(findCtrlLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	//number entry for peak find sigma
+	sigmaGetter = new TGNumberEntry( sigmaFrame, 0.5, 5, PolOrderEntry, TGNumberFormat::kNESRealOne, 
+			TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMinMax, 0.1, 3.0);
+	sigmaLabel = new TGLabel(sigmaFrame, "Pk Find Sigma");
+	sigmaFrame->AddFrame(sigmaGetter, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
+	sigmaFrame->AddFrame(sigmaLabel, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
+	//check box for peak find method
+	methodButton = new TGCheckButton(sideBarFrame, "Non-Markov Method");
+	//number entry for peak find sensitivity
+	sensitivityGetter = new TGNumberEntry( sensitivityFrame, 0.01, 5, PolOrderEntry, TGNumberFormat::kNESRealThree, 
+			TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMinMax, 0.0001, 1.0);
+	sensitivityLabel = new TGLabel(sensitivityFrame, "Pk Find Sens.");
+	sensitivityFrame->AddFrame(sensitivityGetter, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
+	sensitivityFrame->AddFrame(sensitivityLabel, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
 	//buttons to do and retrieve peakfind info
 	doPeakFind = new TGTextButton(sideBarFrame,"Find Peaks");
 	doPeakFind->Connect("Clicked()","AberrationCorrectionWindow",this,"performPeakFind()");
 	getFoundPeaks = new TGTextButton(sideBarFrame,"Get Found Peaks");
 	getFoundPeaks->Connect("Clicked()","AberrationCorrectionWindow",this,"getPeakFindResults()");
 	//add the sidebar buttons to the sidebar frame
-	sideBarFrame->AddFrame(orderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(numPksFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(setFunc, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(getFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(sigmaFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(methodButton, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(sensitivityFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(doPeakFind, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getFoundPeaks, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	
 	/******************************************
 	** Fit Control
 	******************************************/
+	calCtrlLabel = new TGLabel(sideBarFrame, "Peak Usage");
+	sideBarFrame->AddFrame(calCtrlLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	//add the combo box that holds temporary fit information
 	tempFitBox = new TGComboBox(sideBarFrame);
 	tempFitBox->AddEntry("Retrieved Fits",0);
 	tempFitBox->Select(0);
 	tempFitBox->Resize(100,20);
-	useFit = new TGTextButton(sideBarFrame,"Use Fit");
+	useFit = new TGTextButton(sideBarFrame,"Use Peak");
 	useFit->Connect("Clicked()","AberrationCorrectionWindow",this,"transferFit()");
 	fitListBox = new TGComboBox(sideBarFrame);
 	fitListBox->AddEntry("Fits",0);
 	fitListBox->Select(0);
 	fitListBox->Resize(100,20);
-	rmFit = new TGTextButton(sideBarFrame,"Remove Fit");
+	rmFit = new TGTextButton(sideBarFrame,"Remove Peak");
 	rmFit->Connect("Clicked()","AberrationCorrectionWindow",this,"removeFit()");
 	iterationsGetter = new TGNumberEntry( iterationsFrame, 1.0, 5, PolOrderEntry, TGNumberFormat::kNESInteger, 
 			TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, 1, 40);
@@ -627,6 +662,11 @@ AberrationCorrectionWindow::~AberrationCorrectionWindow()
 		}
 		delete[] states;
 		states = NULL;
+	}
+	if(tempPeaks != NULL)
+	{
+		delete[] tempPeaks;
+		tempPeaks = NULL;
 	}
 	
 	if(corrPts != NULL)
@@ -894,6 +934,8 @@ void AberrationCorrectionWindow::readStateData()
 			break;
 		}
 	}
+	//allocate the temp peaks array now that we know how many states there are
+	tempPeaks = new float[numStates];
 	//jump back to the beginning
 	input.clear();
 	input.seekg(0,ios_base::beg);
@@ -1082,18 +1124,15 @@ void AberrationCorrectionWindow::getFitData()
 	//read the fit data
 	double* values = fit->GetParameters();
 	//clear the temp fit combobox
-	tempFitBox->RemoveEntries(1,6);
+	tempFitBox->RemoveEntries(1,numStates+10);
+	numTempPeaks = numPeaks;
 	for(int i=0; i<numPeaks; ++i)
 	{
-		tempFits[i].height = values[3*i+0];
-		tempFits[i].centroid = values[3*i+1];
-		tempFits[i].width = values[3*i+2];
-		tempFits[i].isAssign = false;
+		tempPeaks[i] = values[3*i+1];
 		ostringstream namer;
-		namer<<"Cent: "<<tempFits[i].centroid;
+		namer<<"Cent: "<<tempPeaks[i];
 		tempFitBox->AddEntry(namer.str().c_str(),i+1);
 	}
-	
 }
 
 void AberrationCorrectionWindow::transferFit()
@@ -1108,12 +1147,47 @@ void AberrationCorrectionWindow::removeFit()
 
 void AberrationCorrectionWindow::getPeakFindResults()
 {
-
+	TList* funcList = cutSpec->GetListOfFunctions();
+	TPolyMarker *foundPeaks = reinterpret_cast<TPolyMarker*>(funcList->FindObject("TPolyMarker"));
+	if(foundPeaks==NULL)
+	{
+		logStrm<<"No peaks to get"<<endl;
+		pushToLog();
+		return;
+	}
+	double* xList=foundPeaks->GetX();
+	numTempPeaks = foundPeaks->GetN();
+	if(numTempPeaks==0)
+	{
+		logStrm<<"No peaks to get"<<endl;
+		pushToLog();
+		return;
+	}
+	//otherwise clear the temp fit combo box
+	tempFitBox->RemoveEntries(1,numStates+10);
+	for(int i=0; i<numPeaks; ++i)
+	{
+		tempPeaks[i] = xList[i];
+		ostringstream namer;
+		namer<<"Cent: "<<tempPeaks[i];
+		tempFitBox->AddEntry(namer.str().c_str(),i+1);
+	}
 }
 
 void AberrationCorrectionWindow::performPeakFind()
 {
-
+	if(!checkUpToStates())
+	{return;}
+	double sigma = sigmaGetter->GetNumber();
+	int optionsInd=0;
+	if(methodButton->IsDown())
+	{
+		optionsInd=1;
+	}
+	double sensitivity = sensitivityGetter->GetNumber();
+	cutSpec->GetListOfFunctions()->Clear();
+	cutSpec->ShowPeaks(sigma, peakFindOptions[optionsInd], sensitivity);
+	whiteBoard->Update();
 }
 
 /******************************************
@@ -1273,6 +1347,7 @@ void AberrationCorrectionWindow::prevCutSpec()
 	{
 		minAngle-=0.2;
 		maxAngle-=0.2;
+		--angleInd;
 		displaySubSpec(Normal);
 		return;
 	}
@@ -1292,6 +1367,7 @@ void AberrationCorrectionWindow::nextCutSpec()
 	{
 		minAngle+=0.2;
 		maxAngle+=0.2;
+		++angleInd;
 		displaySubSpec(Normal);
 		return;
 	}
