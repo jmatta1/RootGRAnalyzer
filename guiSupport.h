@@ -124,6 +124,35 @@ struct BinData
 	float* edges;
 };
 
+void sortDoubles(double* arr, int size)
+{
+	// comb sort
+	const float shrink = 1.3;
+	int gap = size;
+	bool swapped = false;
+	while(gap>1 || swapped)
+	{
+		if (gap>1)
+		{
+			gap = (int)(((float)gap)/shrink);
+		}
+		
+		int i=0;
+		int offsetI = gap;
+		swapped=false;
+		for(; offsetI<size; ++i)
+		{
+			if(arr[i]>arr[offsetI])
+			{
+				swapDoubles(arr[i],arr[offsetI]);
+				swapped=true;
+			}
+			++offsetI;
+		}
+	}	
+}
+/*
+
 inline void swapDoubles(double& first, double& second)
 {
 	double swap = first;
@@ -168,11 +197,10 @@ int partitionDoubles(double* arr, int size)
 	swapDoubles(arr[tempInd], arr[last]);
 	return tempInd;
 }
-
 void sortDoubles(double* arr, int size)
 {
 	//if size > 10 use quicksort divide and conquer
-	if(size>10)
+	if(size>100)
 	{
 		//partition the array and get the pivot point
 		int pivotInd = partitionDoubles(arr, size);
@@ -209,4 +237,4 @@ void sortDoubles(double* arr, int size)
 		}
 	}
 	
-}
+}*/
