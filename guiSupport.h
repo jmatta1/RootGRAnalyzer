@@ -51,6 +51,16 @@ double correctionFunction(double *x, double *par)
 	return result;
 }
 
+struct CorrectionPoint
+{
+	float angle;
+	float oldEx;
+	float correctEx;
+	int stateIndex;
+	CorrectionPoint& operator=(CorrectionPoint& rhs){angle=rhs.angle; oldEx=rhs.oldEx; correctEx=rhs.correctEx; stateIndex=rhs.stateIndex; return *this;}
+};
+
+
 struct RunData
 {
 	int runNumber;
