@@ -36,6 +36,8 @@ const int numParams=25;
 double correctionFunction(double *x, double *par)
 {
 	double result=0.0;
+	double ex=x[0];
+	double th=x[1];
 	double tempEx=1.0;
 	double tempTh=1.0;
 	int parInd=0;
@@ -46,18 +48,18 @@ double correctionFunction(double *x, double *par)
 		{
 			result += (par[parInd]*tempEx*tempTh);
 			++parInd;
-			tempTh*=x[1];
+			tempTh*=ex;
 		}
-		tempEx*=x[0];
+		tempEx*=th;
 	}
 	return result;
 }
 
 struct CorrectionPoint
 {
-	float angle;
-	float oldEx;
-	float correctEx;
+	double angle;
+	double oldEx;
+	double correctEx;
 	int stateIndex;
 	CorrectionPoint& operator=(CorrectionPoint& rhs){angle=rhs.angle; oldEx=rhs.oldEx; correctEx=rhs.correctEx; stateIndex=rhs.stateIndex; return *this;}
 };
