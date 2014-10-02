@@ -84,8 +84,6 @@ public:
 	void assignFitToState(int stNum);
 	void unAssignFitToState(int stNum);
 	void rebinDispSpec();
-	void getPeakFindResults();
-	void performPeakFind();
 	int dispCorrPts();
 	void doFitCorr();
 	void exportPoints();
@@ -1315,34 +1313,6 @@ void AberrationCorrectionWindow::removeFit()
 	updateComboBoxes();	
 }
 
-void AberrationCorrectionWindow::getPeakFindResults()
-{
-	if(!checkUpToStates())
-	{return;}
-	TList* funcList = cutSpec->GetListOfFunctions();
-	TPolyMarker *foundPeaks = reinterpret_cast<TPolyMarker*>(funcList->FindObject("TPolyMarker"));
-	if(foundPeaks==NULL)
-	{
-		logStrm<<"No peaks to get"<<endl;
-		pushToLog();
-		return;
-	}
-	double* xList=foundPeaks->GetX();
-	numTempPeaks = foundPeaks->GetN();
-	if(numTempPeaks==0)
-	{
-		logStrm<<"No peaks to get"<<endl;
-		pushToLog();
-		return;
-	}
-	for(int i=0; i<numTempPeaks; ++i)
-	{
-		tempPeaks[i] = xList[i];
-	}
-	sortDoubles(tempPeaks, numTempPeaks);
-	loadTempFitComboBoxFromArray();
-}
-
 void AberrationCorrectionWindow::loadTempFitComboBoxFromArray()
 {
 	tempFitBox->RemoveEntries(1,numStates+10);
@@ -1353,22 +1323,6 @@ void AberrationCorrectionWindow::loadTempFitComboBoxFromArray()
 		tempFitBox->AddEntry(namer.str().c_str(),i+1);
 	}
 	tempFitBox->Select(0);
-}
-
-void AberrationCorrectionWindow::performPeakFind()
-{
-	if(!checkUpToStates())
-	{return;}
-	double sigma = sigmaGetter->GetNumber();
-	int optionsInd=0;
-	if(methodButton->IsDown())
-	{
-		optionsInd=1;
-	}
-	double sensitivity = sensitivityGetter->GetNumber();
-	cutSpec->GetListOfFunctions()->Clear();
-	cutSpec->ShowPeaks(sigma, peakFindOptions[optionsInd], sensitivity);
-	whiteBoard->Update();
 }
 
 void AberrationCorrectionWindow::clearTempFits()
