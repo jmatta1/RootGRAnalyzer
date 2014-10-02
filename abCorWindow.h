@@ -60,9 +60,6 @@ using std::ios_base;
 #include"bicubicinterp.h"
 #include"guiSupport.h"
 
-//TODO, fix up deconstructor
-//TODO, fix up reset function
-
 enum UpdateCallType{ Initial, Normal, Final};
 enum WidgetNumberings{ PolOrderEntry = 0};
 
@@ -89,8 +86,10 @@ public:
 	void rebinDispSpec();
 	void getPeakFindResults();
 	void performPeakFind();
-	void dispCorrPts();
+	int dispCorrPts();
 	void doFitCorr();
+	void exportPoints();
+	void exportFunctions();
 	
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -208,6 +207,7 @@ private:
 	int numPeaks;
 	TGraph2D* corrGraph;
 	TF2** corrFit;
+	TF1* lastFit;
 
 	//display stuff
 	int dispNum;
@@ -283,8 +283,6 @@ private:
 	TGLabel* numPksLabel;
 	TGLabel* findCtrlLabel;
 	TGLabel* calCtrlLabel;
-	TGLabel* sigmaLabel;
-	TGLabel* sensitivityLabel;
 	TGLabel* iterationsLabel;
 	TGLabel* correctionLabel;
 	
@@ -292,23 +290,19 @@ private:
 	TGNumberEntry* bgPolOrderGetter;//used for getting the order of the polynomial background
 	TGNumberEntry* numPeaksGetter;//used for getting the number of peaks to fit
 	TGNumberEntry* iterationsGetter;//used for getting the order of the cal function
-	TGNumberEntry* sigmaGetter;//used for getting the width in stddevs for the peak find
-	TGCheckButton* methodButton;
-	TGNumberEntry* sensitivityGetter;//used for getting the sensitivity for the peak find
 	TGTextButton* setFunc;
 	TGTextButton* getFit;
+	TGTextButton* quickFit;
 	TGTextButton* doRebin;
 	TGComboBox* tempFitBox;
 	TGTextButton* useFit;
 	TGComboBox* fitListBox;
 	TGTextButton* rmFit;
-	TGTextButton* doPeakFind;
-	TGTextButton* getFoundPeaks;
 	TGTextButton* dispCorrPt;
 	TGTextButton* correctionFit;
-	TGTextButton* tryFitAgain;
 	TGTextButton* endCorrDisp;
-	
+	TGTextButton* exportPointsButton;
+	TGTextButton* exportFunctionsButton;
 	
 	//sequential display buttons
 	TGTextButton *prevSpec;
@@ -392,8 +386,6 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	orderFrame = new TGHorizontalFrame(sideBarFrame, width, height);
 	numPksFrame = new TGHorizontalFrame(sideBarFrame, width, height);
 	iterationsFrame = new TGHorizontalFrame(sideBarFrame, width, height);
-	sigmaFrame = new TGHorizontalFrame(sideBarFrame, width, height);
-	sensitivityFrame = new TGHorizontalFrame(sideBarFrame, width, height);
 	
 	//create and connect the buttons in the side bar
 	/******************************************
@@ -419,40 +411,15 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	//button that gets the fit data from the fit panel
 	getFit = new TGTextButton(sideBarFrame,"Get Fit Data");
 	getFit->Connect("Clicked()","AberrationCorrectionWindow",this,"getFitData()");
+	//button that gives you the quick fit interface
+	quickFit = new TGTextButton(sideBarFrame,"Quick Fit");
+	quickFit->Connect("Clicked()","AberrationCorrectionWindow",this,"doQuickFit()");
 	//add the sidebar buttons to the sidebar frame
 	sideBarFrame->AddFrame(orderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(numPksFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(setFunc, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
-	//set the stuff that gets the pk find params
-	findCtrlLabel = new TGLabel(sideBarFrame, "Find States");
-	sideBarFrame->AddFrame(findCtrlLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	//number entry for peak find sigma
-	sigmaGetter = new TGNumberEntry( sigmaFrame, 0.5, 5, PolOrderEntry, TGNumberFormat::kNESRealOne, 
-			TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMinMax, 0.1, 3.0);
-	sigmaLabel = new TGLabel(sigmaFrame, "Pk Find Sigma");
-	sigmaFrame->AddFrame(sigmaGetter, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
-	sigmaFrame->AddFrame(sigmaLabel, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
-	//check box for peak find method
-	methodButton = new TGCheckButton(sideBarFrame, "Non-Markov Method");
-	//number entry for peak find sensitivity
-	sensitivityGetter = new TGNumberEntry( sensitivityFrame, 0.01, 5, PolOrderEntry, TGNumberFormat::kNESRealThree, 
-			TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMinMax, 0.0001, 1.0);
-	sensitivityLabel = new TGLabel(sensitivityFrame, "Pk Find Sens.");
-	sensitivityFrame->AddFrame(sensitivityGetter, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
-	sensitivityFrame->AddFrame(sensitivityLabel, new TGLayoutHints(kLHintsLeft | kLHintsTop, 5, 5, 3, 4) );
-	//buttons to do and retrieve peakfind info
-	doPeakFind = new TGTextButton(sideBarFrame,"Find Peaks");
-	doPeakFind->Connect("Clicked()","AberrationCorrectionWindow",this,"performPeakFind()");
-	getFoundPeaks = new TGTextButton(sideBarFrame,"Get Found Peaks");
-	getFoundPeaks->Connect("Clicked()","AberrationCorrectionWindow",this,"getPeakFindResults()");
-	//add the sidebar buttons to the sidebar frame
-	sideBarFrame->AddFrame(sigmaFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(methodButton, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(sensitivityFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(doPeakFind, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(getFoundPeaks, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	/******************************************
 	** Fit Control
 	******************************************/
@@ -498,10 +465,16 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	correctionFit->Connect("Clicked()","AberrationCorrectionWindow",this,"doFitCorr()");
 	endCorrDisp = new TGTextButton(sideBarFrame,"Return");
 	endCorrDisp->Connect("Clicked()","AberrationCorrectionWindow",this,"returnToSubSpec()");
+	exportPointsButton = new TGTextButton(sideBarFrame,"Export Corr Pts");
+	exportPointsButton->Connect("Clicked()","AberrationCorrectionWindow",this,"exportPoints()");
+	exportFunctionsButton = new TGTextButton(sideBarFrame,"Export Corr Funcs");
+	exportFunctionsButton->Connect("Clicked()","AberrationCorrectionWindow",this,"exportFunctions()");
 	
 	sideBarFrame->AddFrame(dispCorrPt, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(correctionFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(endCorrDisp, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(exportPointsButton, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(exportFunctionsButton, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//add the sidebar to the canvas frame
 	canvasFrame->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY, 2,2,2,2) );
@@ -588,7 +561,7 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	/******************************************
 	** Sequential Display buttons
 	******************************************/
-	sDLabel = new TGLabel(specDispFrame, "Spectrum Control");
+	sDLabel = new TGLabel(specDispFrame, "Spec: ");
 	specDispFrame->AddFrame(sDLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	//create and connect the sequential display buttons
 	//show previous spectrum
@@ -620,7 +593,7 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	/******************************************
 	** Overall Control buttons
 	******************************************/
-	controlLabel = new TGLabel(overallControlFrame, "Overall Control: ");
+	controlLabel = new TGLabel(overallControlFrame, "Overall: ");
 	overallControlFrame->AddFrame(controlLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY,2,2,2,2));
 	//create and connect the overall control buttons
 	//clear log button
@@ -798,9 +771,6 @@ void AberrationCorrectionWindow::readRunData()
 	for(int i =0; i<numRuns; ++i)
 	{
 		states[i] = NULL;
-		ostringstream namer;
-		namer<<"Correction Function "<<i;
-		corrFit[i] = new TF2(namer.str().c_str(), &correctionFunction, 0.0, 25.0, -1.0, 1.0, numParams);
 		for(int j=0; j<NumAngleCuts; ++j)
 		{
 			numPoints[j][i]=0;
@@ -1189,10 +1159,10 @@ void AberrationCorrectionWindow::unAssignFitToState(int stNum)
 		pushToLog();
 		return;
 	}
-	tempInd+=pkAssigns[angleInd][tempInd+stNum].ftInd;
+	int offset=pkAssigns[angleInd][tempInd+stNum].ftInd;
 	//otherwise the state is assigned, assign it
-	corrPts[angleInd][tempInd].stateIndex = -1;
-	corrPts[angleInd][tempInd].correctEx = -1.0;
+	corrPts[angleInd][tempInd+offset].stateIndex = -1;
+	corrPts[angleInd][tempInd+offset].correctEx = -1.0;
 	pkAssigns[angleInd][tempInd+stNum].isSet = false;
 	pkAssigns[angleInd][tempInd+stNum].ftInd = -1;
 	updateComboBoxes();
@@ -1254,6 +1224,7 @@ void AberrationCorrectionWindow::getFitData()
 	{return;}
 	TList* funcList = fitDiag->GetListOfFittingFunctions();
 	TF1* fit = reinterpret_cast<TF1*>(funcList->Last());
+	lastFit=fit;
 	if(fit==NULL)
 	{
 		logStrm<<"No fits to get"<<endl;
@@ -1407,7 +1378,7 @@ void AberrationCorrectionWindow::clearTempFits()
 	loadTempFitComboBoxFromArray();
 }
 
-void AberrationCorrectionWindow::dispCorrPts()
+int AberrationCorrectionWindow::dispCorrPts()
 {
 	//first remove all correction points from the graph
 	int origN = corrGraph[dispNum].GetN();
@@ -1443,9 +1414,9 @@ void AberrationCorrectionWindow::dispCorrPts()
 	}
 	if(angleCount<2)
 	{
-		logStrm<<"Cannot Display points from a single angle cut. Add points from an additional angle cut";
+		logStrm<<"Cannot display points from a single angle cut. Add points from an additional angle cut";
 		pushToLog();
-		return;
+		return angleCount;
 	}
 	//now draw the graph
 	gPad->SetLogy(0);
@@ -1454,6 +1425,7 @@ void AberrationCorrectionWindow::dispCorrPts()
 	corrGraph[dispNum].SetMargin(0.2);
 	corrGraph[dispNum].Draw("PCOL");
 	whiteBoard->Update();
+	return angleCount;
 }
 
 void AberrationCorrectionWindow::drawGraphOfPoints()
@@ -1469,24 +1441,142 @@ void AberrationCorrectionWindow::drawGraphOfPoints()
 
 void AberrationCorrectionWindow::doFitCorr()
 {
+	if(corrFit[dispNum]==NULL)
+	{
+		ostringstream namer;
+		namer<<"Correction Function "<<dispNum;
+		corrFit[dispNum] = new TF2(namer.str().c_str(), &correctionFunction, 0.0, 55.0, -1.0, 1.0, numParams);
+	}
 	if(corrFitMode)
 	{
-		corrGraph[dispNum].Fit(corrFit[dispNum],"WOM");
-		dispCorrPts();
-		corrFit[dispNum]->Draw("surf1");
-		drawGraphOfPoints();
+		int temp = dispCorrPts();
+		if(temp>1)
+		{
+			corrGraph[dispNum].Fit(corrFit[dispNum],"WOM");
+			corrFit[dispNum]->Draw("surf1");
+			drawGraphOfPoints();
+		}
+		else
+		{
+			logStrm<<"Cannot perform a fit with a single angle. At least 2 angles are needed, 5 angles recommended.";
+			pushToLog();
+			return;
+		}
 	}
 	else
 	{
 		corrFitMode=true;
-		corrGraph[dispNum].Fit(corrFit[dispNum],"WO");
-		dispCorrPts();
-		corrFit[dispNum]->Draw("surf1");
-		drawGraphOfPoints();
+		int temp = dispCorrPts();
+		if(temp>1)
+		{
+			corrGraph[dispNum].Fit(corrFit[dispNum],"WO");
+			corrFit[dispNum]->Draw("surf1");
+			drawGraphOfPoints();
+		}
+		else
+		{
+			logStrm<<"Cannot perform a fit with a single angle. At least 2 angles are needed, 5 angles recommended.";
+			pushToLog();
+			return;
+		}
 	}
-	
 }
 
+void AberrationCorrectionWindow::exportPoints()
+{
+	logStrm<<"\nGive the file name to save correction data points to";
+	pushToLog();
+	static TString directory(".");
+	TGFileInfo fileInfo;
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = csvDataType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	string temp = string(fileInfo.fFilename);
+	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
+	{
+		temp.append(".csv");
+	}
+	directory = fileInfo.fIniDir;
+	
+	//now open the file
+	ofstream output;
+	output.open(temp.c_str());
+	output<<"run #, Old Ex, Angle, Correct Ex, Difference (what is fitted)"<<endl;
+	for(int i=0; i<numRuns; ++i)
+	{
+		int tempInd = i*numStates;
+		for(int j=0; i<NumAngleCuts; ++i)
+		{
+			for(int k=0; j<numPoints[j][i]; ++j)
+			{
+				if(corrPts[i][tempInd+k].stateIndex!=-1)
+				{	
+					double oldEx = corrPts[j][tempInd+k].oldEx;
+					double angle = corrPts[j][tempInd+k].angle;
+					double correctEx = corrPts[j][tempInd+k].correctEx;
+					output<<oldEx<<","<<angle<<","<<correctEx<<","<<(correctEx-oldEx)<<endl;
+				}
+			}
+		}
+	}
+	output.close();
+}
+
+void AberrationCorrectionWindow::exportFunctions()
+{
+	logStrm<<"\nGive the file name to save correction functions to";
+	pushToLog();
+	static TString directory(".");
+	TGFileInfo fileInfo;
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = csvDataType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	string temp = string(fileInfo.fFilename);
+	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
+	{
+		temp.append(".csv");
+	}
+	directory = fileInfo.fIniDir;
+	
+	//now open the file
+	ofstream output;
+	output.open(temp.c_str());
+	output<<"run #, a00, a01, a02, a03, a04, a10, a11, .., a43, a44, where each term is: aij*(ex^i)*(theta^j)"<<endl;
+	for(int i=0; i<numRuns; ++i)
+	{
+		if(corrFit[i]!=NULL)
+		{
+			double* paramArray = corrFit[i]->GetParameters();
+			output<<runs[i].runNumber<<","<<paramArray[0];
+			for(int j=1; j<numParams; ++j)
+			{
+				output<<","<<paramArray[j];
+			}
+			output<<endl;
+		}
+	}
+	output.close();
+}
 
 /******************************************
 *******************************************
@@ -1581,6 +1671,7 @@ void AberrationCorrectionWindow::displaySubSpec(const UpdateCallType& tp)
 	else
 	{
 		fitDiag->SetFitObject(dynamic_cast<TVirtualPad*>(whiteBoard->GetCanvas()), dynamic_cast<TObject*>(cutSpec), kButton1Down);
+		setFitFunc();
 	}
 	
 	whiteBoard->Update();
