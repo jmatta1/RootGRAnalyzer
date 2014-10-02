@@ -191,6 +191,8 @@ private:
 	//analysis stuff
 	RunData* runs;
 	double* tempPeaks;
+	double quickFitPos[7];
+	double tempHistVals[7];
 	int numTempPeaks;
 	StateData** states;
 	StateFit** pkAssigns;
@@ -1223,7 +1225,55 @@ void AberrationCorrectionWindow::getFitData()
 
 void AberrationCorrectionWindow::doQuickFit()
 {
-
+		if(!checkUpToStates())
+		{return;}
+		//get the polynomial order
+		currBGOrder = bgPolOrderGetter->GetIntNumber();
+		numPeaks = numPeaksGetter->GetIntNumber();
+		//calculate the indices into the grand array of functions
+		int bgIndex = currBGOrder+1;
+		int peakIndex = numPeaks-1;
+		//set the fit panel fit function while we are at it for the heck of it
+		fitDiag->SetFunction(peakFitFormulas[peakIndex][bgIndex]);
+		// tell the user what they need to do
+		logStrm<<"\n    You need to click at the one bound of the fit region";
+		pushToLog();
+		logStrm<<"    Then the center of each peak in the region";
+		pushToLog();
+		logStrm<<"    (one center per peak in the num peaks number getter)";
+		pushToLog();
+		logStrm<<"    Finally you double click at the other bound of the fit region";
+		pushToLog();
+		TGraph* fitData = (TGraph*)whiteBoard->WaitPrimitive("Graph","PolyLine");
+		fitData->Print();
+		int numPoints = fitData->GetN();
+		if( numPoints < (numPeaks+2) )
+		{
+			logStrm<<"Not enough points, you need to give numPeaks+2 Points, see instructions above\n";
+			logStrm<<"Click the button to try again"
+			pushToLog();
+			return;
+		}
+		else if(numPoints > (numPeaks+2) )
+		{
+			logStrm<<"Too many points, you need to give numPeaks+2 Points, see instructions above\n";
+			logStrm<<"Click the button to try again"
+			pushToLog();
+			return;
+		}
+		double* positions = fitData->GetX();
+		//transfer the quickFitPos array so we can sort it
+		
+		//sort the positions
+		
+		//fill the tempHistVals array with the histogram values at the clicked positions
+		
+		//calculate the estimated params using the array values
+		
+		//fit the histogram
+		
+		//dump the peak centroids into the temporary fit holding area
+		//as if the get fit data button was clicked when using the fit panel
 }
 
 void AberrationCorrectionWindow::transferFit()
