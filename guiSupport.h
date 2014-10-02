@@ -27,8 +27,6 @@ const char *corColNames[] = { "Ex", "Assigned Cent.", "", "Cent Sel", ""};
 
 const char *calFuncs[] = { "pol1", "pol2" };
 
-const char *peakFindOptions[] = { "nobackground", "noMarkov nobackground" };
-
 
 const int exOrder=4;
 const int thOrder=4;
