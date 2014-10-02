@@ -27,6 +27,32 @@ const char *corColNames[] = { "Ex", "Assigned Cent.", "", "Cent Sel", ""};
 
 const char *calFuncs[] = { "pol1", "pol2" };
 
+const int maxPeaks = 5;
+const int numBgTypes = 4;
+
+const char *peakFitFormulas[maxPeaks][numBgTypes] =
+{
+{									"gaus(0)",
+									"gaus(0)+pol0(3)",
+									"gaus(0)+pol1(3)",					
+									"gaus(0)+pol2(3)"},
+{							"gaus(0)+gaus(3)",
+							"gaus(0)+gaus(3)+pol0(6)",
+							"gaus(0)+gaus(3)+pol1(6)",			
+							"gaus(0)+gaus(3)+pol2(6)"},
+{					"gaus(0)+gaus(3)+gaus(6)",
+					"gaus(0)+gaus(3)+gaus(6)+pol0(9)",
+					"gaus(0)+gaus(3)+gaus(6)+pol1(9)",	
+					"gaus(0)+gaus(3)+gaus(6)+pol2(9)"},
+{			"gaus(0)+gaus(3)+gaus(6)+gaus(9)",
+			"gaus(0)+gaus(3)+gaus(6)+gaus(9)+pol0(12)",
+			"gaus(0)+gaus(3)+gaus(6)+gaus(9)+pol1(12)",
+			"gaus(0)+gaus(3)+gaus(6)+gaus(9)+pol2(12)"},
+{	"gaus(0)+gaus(3)+gaus(6)+gaus(9)+gaus(12)",
+	"gaus(0)+gaus(3)+gaus(6)+gaus(9)+gaus(12)+pol0(15)",
+	"gaus(0)+gaus(3)+gaus(6)+gaus(9)+gaus(12)+pol1(15)",
+	"gaus(0)+gaus(3)+gaus(6)+gaus(9)+gaus(12)+pol2(15)"}
+};
 
 const int exOrder=4;
 const int thOrder=4;
