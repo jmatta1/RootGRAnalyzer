@@ -74,9 +74,10 @@ public:
 	AberrationCorrectionWindow(const TGWindow* parent, UInt_t width, UInt_t height);
 	~AberrationCorrectionWindow();
 	
-	//fit control
+	//fitting
 	void setFitFunc();
 	void getFitData();
+	void doQuickFit();
 	
 	//Fit control
 	void transferFit();
@@ -1240,6 +1241,11 @@ void AberrationCorrectionWindow::getFitData()
 	}
 	sortDoubles(tempPeaks, numTempPeaks);
 	loadTempFitComboBoxFromArray();
+}
+
+void AberrationCorrectionWindow::doQuickFit()
+{
+
 }
 
 void AberrationCorrectionWindow::transferFit()
