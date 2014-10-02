@@ -418,6 +418,7 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	sideBarFrame->AddFrame(numPksFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(setFunc, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(quickFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	/******************************************
 	** Fit Control
