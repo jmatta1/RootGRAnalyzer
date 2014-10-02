@@ -1447,33 +1447,10 @@ void CalWindow::setFitFunc()
 	//get the polynomial order
 	currBGOrder = bgPolOrderGetter->GetIntNumber();
 	numPeaks = numPeaksGetter->GetIntNumber();
-	
-	//now construct the fit function
-	int paramCounter = 0;
-	ostringstream formulaBuilder;
-	//add a gaussian for each peak
-	for(int j=0; j<numPeaks; ++j)
-	{
-		formulaBuilder<<"gaus("<<paramCounter<<")";
-		if( currBGOrder==-1 && j!=(numPeaks-1))
-		{
-			formulaBuilder<<" + ";
-		}
-		else if (currBGOrder != -1)
-		{
-			formulaBuilder<<" + ";
-		}
-		paramCounter+=3;
-	}
-	//now add the appropriate polynomial background
-	//add polynomial background to the fit if requested
-	if( currBGOrder!=-1)
-	{
-		formulaBuilder<<"pol"<<currBGOrder<<"("<<paramCounter<<")";
-	}
-	string formula = formulaBuilder.str();
-	
-	fitDiag->SetFunction(formula.c_str());
+	//calculate the indices into the grand array of functions
+	int bgIndex = currBGOrder+1;
+	int peakIndex = numPeaks-1;
+	fitDiag->SetFunction(peakFitFormulas[peakIndex][bgIndex]);	
 }
 
 void CalWindow::getFitData()
