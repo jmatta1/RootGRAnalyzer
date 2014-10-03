@@ -207,7 +207,7 @@ private:
 	TFile* frFile;
 	int currBGOrder;
 	int numPeaks;
-	TGraph2D* corrGraph;
+	TGraph2D** corrGraph;
 	TF2** corrFit;
 	TF1* lastFit;
 	bool quickFitFirstTime;
@@ -767,7 +767,7 @@ void AberrationCorrectionWindow::readRunData()
 	//allocate the runs array
 	runs = new RunData[numRuns];
 	states = new StateData*[numRuns];
-	corrGraph = new TGraph2D[numRuns];
+	corrGraph = new TGraph2D*[numRuns];
 	corrFit = new TF2*[numRuns];
 	for(int i=0; i<NumAngleCuts; ++i)
 	{
@@ -776,6 +776,7 @@ void AberrationCorrectionWindow::readRunData()
 	for(int i =0; i<numRuns; ++i)
 	{
 		states[i] = NULL;
+		corrGraph[i] = NULL;
 		for(int j=0; j<NumAngleCuts; ++j)
 		{
 			numPoints[j][i]=0;
@@ -1252,8 +1253,8 @@ void AberrationCorrectionWindow::doQuickFit()
 		quickFitFirstTime=true;
 	}
 	TGraph* fitData = (TGraph*)whiteBoard->WaitPrimitive("Graph","PolyLine");
-	int numPoints = fitData->GetN();
-	if( numPoints < (numPeaks+2) )
+	int numGraphPoints = fitData->GetN();
+	if( numGraphPoints < (numPeaks+2) )
 	{
 		logStrm<<"Not enough points, you need to give numPeaks+2 ("<<numPeaks+2<<") Points, see instructions above\n";
 		logStrm<<"Click the button to try again";
@@ -1261,7 +1262,7 @@ void AberrationCorrectionWindow::doQuickFit()
 		delete fitData;
 		return;
 	}
-	else if(numPoints > (numPeaks+2) )
+	else if(numGraphPoints > (numPeaks+2) )
 	{
 		logStrm<<"Too many points, you need to give numPeaks+2 ("<<numPeaks+2<<") Points, see instructions above\n";
 		logStrm<<"Click the button to try again";
@@ -1271,22 +1272,22 @@ void AberrationCorrectionWindow::doQuickFit()
 	}
 	double* positions = fitData->GetX();
 	//transfer the quickFitPos array so we can sort it
-	for(int i=0; i<numPoints; ++i)
+	for(int i=0; i<numGraphPoints; ++i)
 	{
 		quickFitPos[i]=positions[i];
 	}
 	//now cleanup the fit data
 	delete fitData;
 	//sort the positions
-	sortDoubles(quickFitPos,numPoints);
+	sortDoubles(quickFitPos,numGraphPoints);
 	//fill the tempHistVals array with the histogram values at the clicked positions
-	for(int i=0; i<numPoints; ++i)
+	for(int i=0; i<numGraphPoints; ++i)
 	{
 		int binNum = cutSpec->GetXaxis()->FindBin(quickFitPos[i]);
 		tempHistVals[i]=cutSpec->GetBinContent(binNum);
 	}
 	//calculate the estimated params using the array values
-	int last = numPoints-1;
+	int last = numGraphPoints-1;
 	//first the straight line background
 	double slope = ( (tempHistVals[last]-tempHistVals[0])/(quickFitPos[last]-quickFitPos[0]) );
 	double intercept = ( tempHistVals[0]-(quickFitPos[0]*slope) );
@@ -1458,12 +1459,11 @@ void AberrationCorrectionWindow::clearTempFits()
 
 int AberrationCorrectionWindow::dispCorrPts()
 {
-	//first remove all correction points from the graph
-	int origN = corrGraph[dispNum].GetN();
-	for(int i=(origN-1); i>=0; --i)
+	if(corrGraph[dispNum]!=NULL)
 	{
-		corrGraph[dispNum].RemovePoint(i);
+		delete corrGraph[dispNum];
 	}
+	corrGraph[dispNum] = new TGraph2D;
 	//now iterate through all the correction points for this run and add them one by one to the graph
 	int tempInd = dispNum*numStates;
 	int count=0;
@@ -1480,7 +1480,7 @@ int AberrationCorrectionWindow::dispCorrPts()
 				double angle = corrPts[i][tempInd+j].angle;
 				double correctEx = corrPts[i][tempInd+j].correctEx;
 				cout<<oldEx<<", "<<angle<<", "<<correctEx<<", "<<(correctEx-oldEx)<<endl;
-				corrGraph[dispNum].SetPoint(count, oldEx, angle, correctEx-oldEx);
+				corrGraph[dispNum]->SetPoint(count, oldEx, angle, correctEx-oldEx);
 				++count;
 				gotPts=true;
 			}
@@ -1498,10 +1498,10 @@ int AberrationCorrectionWindow::dispCorrPts()
 	}
 	//now draw the graph
 	gPad->SetLogy(0);
-	corrGraph[dispNum].SetMarkerSize(2);
-	corrGraph[dispNum].SetMarkerStyle(8);
-	corrGraph[dispNum].SetMargin(0.2);
-	corrGraph[dispNum].Draw("PCOL");
+	corrGraph[dispNum]->SetMarkerSize(2);
+	corrGraph[dispNum]->SetMarkerStyle(8);
+	corrGraph[dispNum]->SetMargin(0.2);
+	corrGraph[dispNum]->Draw("PCOL");
 	whiteBoard->Update();
 	return angleCount;
 }
@@ -1509,11 +1509,11 @@ int AberrationCorrectionWindow::dispCorrPts()
 void AberrationCorrectionWindow::drawGraphOfPoints()
 {
 	gPad->SetLogy(0);
-	corrGraph[dispNum].SetMarkerSize(2);
-	corrGraph[dispNum].SetMarkerColor(1);
-	corrGraph[dispNum].SetMarkerStyle(8);
-	corrGraph[dispNum].SetMargin(0.2);
-	corrGraph[dispNum].Draw("PO");
+	corrGraph[dispNum]->SetMarkerSize(2);
+	corrGraph[dispNum]->SetMarkerColor(1);
+	corrGraph[dispNum]->SetMarkerStyle(8);
+	corrGraph[dispNum]->SetMargin(0.2);
+	corrGraph[dispNum]->Draw("SAME PO");
 	whiteBoard->Update();
 }
 
@@ -1530,10 +1530,10 @@ void AberrationCorrectionWindow::doFitCorr()
 		int temp = dispCorrPts();
 		if(temp>1)
 		{
-			corrGraph[dispNum].Fit(corrFit[dispNum],"WOM");
+			corrGraph[dispNum]->Fit(corrFit[dispNum],"WOM");
+			corrFit[dispNum]->SetRange(0.8*corrGraph[dispNum]->GetXmin(),0.8*corrGraph[dispNum]->GetYmin(),1.2*corrGraph[dispNum]->GetXmax(),1.2*corrGraph[dispNum]->GetYmax());
+			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
-			corrFit[dispNum]->SetRange(0.8*corrGraph[dispNum].GetXMin(),0.8*corrGraph[dispNum].GetYMin(),1.2*corrGraph[dispNum].GetXMax(),1.2*corrGraph[dispNum].GetYMax());
-			corrFit[dispNum]->Draw("surf1 same");
 		}
 		else
 		{
@@ -1548,10 +1548,10 @@ void AberrationCorrectionWindow::doFitCorr()
 		int temp = dispCorrPts();
 		if(temp>1)
 		{
-			corrGraph[dispNum].Fit(corrFit[dispNum],"WO");
+			corrGraph[dispNum]->Fit(corrFit[dispNum],"WO");
+			corrFit[dispNum]->SetRange(0.8*corrGraph[dispNum]->GetXmin(),0.8*corrGraph[dispNum]->GetYmin(),1.2*corrGraph[dispNum]->GetXmax(),1.2*corrGraph[dispNum]->GetYmax());
+			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
-			corrFit[dispNum]->SetRange(0.8*corrGraph[dispNum].GetXMin(),0.8*corrGraph[dispNum].GetYMin(),1.2*corrGraph[dispNum].GetXMax(),1.2*corrGraph[dispNum].GetYMax());
-			corrFit[dispNum]->Draw("surf1 same");
 		}
 		else
 		{
