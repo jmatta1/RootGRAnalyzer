@@ -193,6 +193,7 @@ private:
 	double* tempPeaks;
 	double quickFitPos[7];
 	double tempHistVals[7];
+	double tempParams[18];
 	int numTempPeaks;
 	StateData** states;
 	StateFit** pkAssigns;
@@ -209,6 +210,7 @@ private:
 	TGraph2D* corrGraph;
 	TF2** corrFit;
 	TF1* lastFit;
+	bool quickFitFirstTime;
 
 	//display stuff
 	int dispNum;
@@ -358,6 +360,7 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	angleInd=4;
 	corrGraph = NULL;
 	corrFit = NULL;
+	quickFitFirstTime = false;
 
 	//sys = new TUnixSystem();
 	sys = gSystem;
@@ -1225,16 +1228,18 @@ void AberrationCorrectionWindow::getFitData()
 
 void AberrationCorrectionWindow::doQuickFit()
 {
-		if(!checkUpToStates())
-		{return;}
-		//get the polynomial order
-		currBGOrder = bgPolOrderGetter->GetIntNumber();
-		numPeaks = numPeaksGetter->GetIntNumber();
-		//calculate the indices into the grand array of functions
-		int bgIndex = currBGOrder+1;
-		int peakIndex = numPeaks-1;
-		//set the fit panel fit function while we are at it for the heck of it
-		fitDiag->SetFunction(peakFitFormulas[peakIndex][bgIndex]);
+	if(!checkUpToStates())
+	{return;}
+	//get the polynomial order
+	currBGOrder = bgPolOrderGetter->GetIntNumber();
+	numPeaks = numPeaksGetter->GetIntNumber();
+	//calculate the indices into the grand array of functions
+	int bgIndex = currBGOrder+1;
+	int peakIndex = numPeaks-1;
+	//set the fit panel fit function while we are at it for the heck of it
+	fitDiag->SetFunction(peakFitFormulas[peakIndex][bgIndex]);
+	if(!quickFitFirstTime)
+	{
 		// tell the user what they need to do
 		logStrm<<"\n    You need to click at the one bound of the fit region";
 		pushToLog();
@@ -1244,36 +1249,121 @@ void AberrationCorrectionWindow::doQuickFit()
 		pushToLog();
 		logStrm<<"    Finally you double click at the other bound of the fit region";
 		pushToLog();
-		TGraph* fitData = (TGraph*)whiteBoard->WaitPrimitive("Graph","PolyLine");
-		fitData->Print();
-		int numPoints = fitData->GetN();
-		if( numPoints < (numPeaks+2) )
+		quickFitFirstTime=true;
+	}
+	TGraph* fitData = (TGraph*)whiteBoard->WaitPrimitive("Graph","PolyLine");
+	int numPoints = fitData->GetN();
+	if( numPoints < (numPeaks+2) )
+	{
+		logStrm<<"Not enough points, you need to give numPeaks+2 ("<<numPeaks+2<<") Points, see instructions above\n";
+		logStrm<<"Click the button to try again";
+		pushToLog();
+		delete fitData;
+		return;
+	}
+	else if(numPoints > (numPeaks+2) )
+	{
+		logStrm<<"Too many points, you need to give numPeaks+2 ("<<numPeaks+2<<") Points, see instructions above\n";
+		logStrm<<"Click the button to try again";
+		pushToLog();
+		delete fitData;
+		return;
+	}
+	double* positions = fitData->GetX();
+	//transfer the quickFitPos array so we can sort it
+	for(int i=0; i<numPoints; ++i)
+	{
+		quickFitPos[i]=positions[i];
+	}
+	//now cleanup the fit data
+	delete fitData;
+	//sort the positions
+	sortDoubles(quickFitPos,numPoints);
+	//fill the tempHistVals array with the histogram values at the clicked positions
+	for(int i=0; i<numPoints; ++i)
+	{
+		int binNum = cutSpec->GetXaxis()->FindBin(quickFitPos[i]);
+		tempHistVals[i]=cutSpec->GetBinContent(binNum);
+	}
+	//calculate the estimated params using the array values
+	int last = numPoints-1;
+	//first the straight line background
+	double slope = ( (tempHistVals[last]-tempHistVals[0])/(quickFitPos[last]-quickFitPos[0]) );
+	double intercept = ( tempHistVals[0]-(quickFitPos[0]*slope) );
+	//or constant background
+	double avgOffset = ( (tempHistVals[last]+tempHistVals[0])/2 );
+	//now load the tempParams array with height, position, and width of every peak 
+	for(int i=0; i<numPeaks; ++i)
+	{
+		double height;
+		double position;
+		double width;
+		//first calculate the height guess for peak i, this is dependent on the background option
+		switch(currBGOrder)
 		{
-			logStrm<<"Not enough points, you need to give numPeaks+2 Points, see instructions above\n";
-			logStrm<<"Click the button to try again"
-			pushToLog();
-			return;
+		case -1:
+			//no background
+			height = tempHistVals[i+1];
+			break;
+		case 0:
+			//constant background
+			height = ( tempHistVals[i+1]-avgOffset );
+			break;
+		default:
+			//linear or quadratic background (since I do not estimate the quadratic term)
+			height = ( tempHistVals[i+1]- ( slope*quickFitPos[i+1]+intercept ) );
+			break;
 		}
-		else if(numPoints > (numPeaks+2) )
-		{
-			logStrm<<"Too many points, you need to give numPeaks+2 Points, see instructions above\n";
-			logStrm<<"Click the button to try again"
-			pushToLog();
-			return;
-		}
-		double* positions = fitData->GetX();
-		//transfer the quickFitPos array so we can sort it
-		
-		//sort the positions
-		
-		//fill the tempHistVals array with the histogram values at the clicked positions
-		
-		//calculate the estimated params using the array values
-		
-		//fit the histogram
-		
-		//dump the peak centroids into the temporary fit holding area
-		//as if the get fit data button was clicked when using the fit panel
+		//guess the width by looking at the difference between the current peak and the points next to it
+		double diff1 = ((quickFitPos[i+2]-quickFitPos[i+1])/2);
+		double diff2 = ((quickFitPos[i+1]-quickFitPos[i+0])/2);
+		double diff = (diff1<diff2)?diff1:diff2;
+		width = diff/4.5; //the divider was pulled from the air testing shows it seems to work all right
+		//guess the position via what the user entered
+		position=quickFitPos[i+1];
+		//load the temp param array
+		tempParams[3*i] = height;
+		tempParams[3*i+1] = position;
+		tempParams[3*i+2] = width;
+	}
+	//temp params will always have space for quadratic background so simply put all terms
+	if(currBGOrder==0)
+	{
+		tempParams[3*numPeaks]=avgOffset;
+	}
+	else
+	{
+		tempParams[3*numPeaks]=intercept;
+	}
+	tempParams[3*numPeaks+1]=slope;
+	tempParams[3*numPeaks+2]=0.0;
+	//make the TF1 to fit
+	TF1* tempQuickFit = new TF1("tempQuickFit",peakFitFormulas[peakIndex][bgIndex],quickFitPos[0],quickFitPos[last]);
+	tempQuickFit->SetParameters(tempParams);
+	//fit the histogram
+	cutSpec->Fit(tempQuickFit,"RI");
+	whiteBoard->Update();
+	//dump the peak centroids into the temporary fit holding area
+	//as if the get fit data button was clicked when using the fit panel
+	//read the fit data
+	double* values = tempQuickFit->GetParameters();
+	//clear the temp fit combobox
+	tempFitBox->RemoveEntries(1,numStates+10);
+	numTempPeaks = numPeaks;
+	for(int i=0; i<numPeaks; ++i)
+	{
+		tempPeaks[i] = values[3*i+1];
+	}
+	sortDoubles(tempPeaks, numTempPeaks);
+	loadTempFitComboBoxFromArray();
+	//cleanup
+	delete tempQuickFit;
+	//make the fit dialog point at the histogram again
+	if(fitDiag!=NULL)
+	{
+		fitDiag->SetFitObject(dynamic_cast<TVirtualPad*>(whiteBoard->GetCanvas()), dynamic_cast<TObject*>(cutSpec), kButton1Down);
+		setFitFunc();	
+	}
 }
 
 void AberrationCorrectionWindow::transferFit()
@@ -1423,7 +1513,7 @@ void AberrationCorrectionWindow::drawGraphOfPoints()
 	corrGraph[dispNum].SetMarkerColor(1);
 	corrGraph[dispNum].SetMarkerStyle(8);
 	corrGraph[dispNum].SetMargin(0.2);
-	corrGraph[dispNum].Draw("same PO");
+	corrGraph[dispNum].Draw("PO");
 	whiteBoard->Update();
 }
 
@@ -1441,8 +1531,9 @@ void AberrationCorrectionWindow::doFitCorr()
 		if(temp>1)
 		{
 			corrGraph[dispNum].Fit(corrFit[dispNum],"WOM");
-			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
+			corrFit[dispNum]->SetRange(0.8*corrGraph[dispNum].GetXMin(),0.8*corrGraph[dispNum].GetYMin(),1.2*corrGraph[dispNum].GetXMax(),1.2*corrGraph[dispNum].GetYMax());
+			corrFit[dispNum]->Draw("surf1 same");
 		}
 		else
 		{
@@ -1458,8 +1549,9 @@ void AberrationCorrectionWindow::doFitCorr()
 		if(temp>1)
 		{
 			corrGraph[dispNum].Fit(corrFit[dispNum],"WO");
-			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
+			corrFit[dispNum]->SetRange(0.8*corrGraph[dispNum].GetXMin(),0.8*corrGraph[dispNum].GetYMin(),1.2*corrGraph[dispNum].GetXMax(),1.2*corrGraph[dispNum].GetYMax());
+			corrFit[dispNum]->Draw("surf1 same");
 		}
 		else
 		{
@@ -1512,7 +1604,7 @@ void AberrationCorrectionWindow::exportPoints()
 					double oldEx = corrPts[j][tempInd+k].oldEx;
 					double angle = corrPts[j][tempInd+k].angle;
 					double correctEx = corrPts[j][tempInd+k].correctEx;
-					output<<oldEx<<","<<angle<<","<<correctEx<<","<<(correctEx-oldEx)<<endl;
+					output<<runs[i].runNumber<<","<<oldEx<<","<<angle<<","<<correctEx<<","<<(correctEx-oldEx)<<endl;
 				}
 			}
 		}
@@ -1610,15 +1702,15 @@ void AberrationCorrectionWindow::displaySubSpec(const UpdateCallType& tp)
 	}
 	else if( tp == Normal )
 	{
-		if(subSpec!=NULL)
-		{
-			delete subSpec;
-			subSpec=NULL;
-		}
 		if(cutSpec!=NULL)
 		{
 			delete cutSpec;
 			cutSpec=NULL;
+		}
+		if(subSpec!=NULL)
+		{
+			delete subSpec;
+			subSpec=NULL;
 		}
 		whiteBoard->Clear();
 		whiteBoard->Update();
@@ -1639,6 +1731,7 @@ void AberrationCorrectionWindow::displaySubSpec(const UpdateCallType& tp)
 	int maxBin = subSpec->GetYaxis()->FindBin(maxAngle);
 	
 	cutSpec = subSpec->ProjectionX("angleCutProjection",minBin, maxBin);
+	
 	cutSpec->Draw();
 	sclToggle=true;
 	gPad->SetLogy(1);
