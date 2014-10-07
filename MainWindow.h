@@ -143,6 +143,7 @@ private:
 	string makeSubSpecName(int runN);
 	string makeExTreeName(int runN);
 	string makeExSubSpecName(int runN);
+	string makeExCorrTreeName(int runN);
 
 	//functions for retrieving various things from files
 	TTree* retrieveTree(int runN);
@@ -162,6 +163,7 @@ private:
 	TH2F* retrieveSubSpec(int runN);
 	TTree* retrieveExTree(int runN);
 	TH2F* retrieveExSubSpec(int runN);
+	TTree* retrieveExCorrTree(int runN);
 
 	//functions for retrieving various things from files
 	//and then throwing out error messages if the pointer comes back null
@@ -182,6 +184,7 @@ private:
 	TH2F* testSubSpec(int runN);
 	TTree* testExTree(int runN);
 	TH2F* testExSubSpec(int runN);
+	TTree* testExCorrTree(int runN);
 	
 	//display functions for sequential displays
 	void updateDisplay(const UpdateCallType& tp);
@@ -3528,6 +3531,34 @@ TH2F* MainWindow::testExSubSpec(int runN)
 	{
 		logStrm<<"Missing a Subtracted Theta vs Ex spectrum, you might have the wrong aux file loaded";
 		pushToLog();
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+string MainWindow::makeExCorrTreeName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"run"<<runN<<"_Excorr_tree";
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TTree* MainWindow::retrieveExCorrTree(int runN)
+{
+	string histName = makeExCorrTreeName(runN);
+	return reinterpret_cast<TTree*>(frFile->Get(histName.c_str()));
+}
+
+TTree* MainWindow::testExCorrTree(int runN)
+{
+	TTree* temp = retrieveExCorrTree(runN);
+	if( temp==NULL )
+	{
+		cout<<"Missing a corrected excitation energy tree, you might have the wrong friend file loaded"<<endl;
 		return NULL;
 	}
 	else
