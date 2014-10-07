@@ -65,20 +65,45 @@ double correctionFunction(double *x, double *par)
 	double th=x[1];
 	double tempEx=1.0;
 	double tempTh=1.0;
-	int parInd=0;
-	for(int i=0; i<=exOrder; ++i)
+	for(int i=0; i<=thOrder; ++i)
 	{
-		tempTh=1.0;
-		for(int j=0; j<=thOrder; ++j)
+		tempEx=1.0;
+		int intermediate = (i*exOrder);
+		for(int j=0; j<=exOrder; ++j)
 		{
-			result += (par[parInd]*tempEx*tempTh);
-			++parInd;
-			tempTh*=ex;
+			result += (par[intermediate+j]*tempEx*tempTh);
+			tempEx*=ex;
 		}
-		tempEx*=th;
+		tempTh*=th;
 	}
 	return result;
 }
+
+struct CorrFunc
+{
+	int runNum;
+	double params[numParams];
+	
+	double eval(double oldEx, double angle)
+	{
+		double result = 0.0;
+		double tempEx=1.0;
+		double tempTh=1.0;
+		for(int i=0; i<thOrder; ++i)
+		{
+			tempEx=1.0;
+			int intermediate = (i*exOrder);
+			for(int j=0; j<exOrder; ++j)
+			{
+				result += (params[intermediate+j]*tempEx*tempTh);
+				tempEx*=oldEx;
+			}
+			tempTh*=angle;
+		}
+		return result;
+	}
+};
+
 
 struct CorrectionPoint
 {
@@ -113,6 +138,21 @@ struct FitData
 	double width;
 	bool isAssign;
 	FitData& operator=(FitData& rhs){height=rhs.height; centroid=rhs.centroid; width=rhs.width; isAssign=rhs.isAssign; return *this;}
+};
+
+struct CorrFit
+{
+	double centroid;
+	double width;
+	FitData& operator=(FitData& rhs){height=rhs.height; centroid=rhs.centroid; width=rhs.width; isAssign=rhs.isAssign; return *this;}
+};
+
+struct RefFit
+{
+	double centroid;
+	double width;
+	int refCount;
+	FitData& operator=(FitData& rhs){refCount=rhs.refCount; centroid=rhs.centroid; width=rhs.width; isAssign=rhs.isAssign; return *this;}
 };
 
 struct StateFit
@@ -179,6 +219,41 @@ void sortDoubles(double* arr, int size)
 			if(arr[i]>arr[offsetI])
 			{
 				swapDoubles(arr[i],arr[offsetI]);
+				swapped=true;
+			}
+			++offsetI;
+		}
+	}	
+}
+
+inline void swapRefs(RefFit& first, RefFit& second)
+{
+	FitData swap = first;
+	first = second;
+	second = swap;
+}
+
+void sortRefs(RefFit* arr, int size)
+{
+	// comb sort
+	const float shrink = 1.3;
+	int gap = size;
+	bool swapped = false;
+	while(gap>1 || swapped)
+	{
+		if (gap>1)
+		{
+			gap = (int)(((float)gap)/shrink);
+		}
+		
+		int i=0;
+		int offsetI = gap;
+		swapped=false;
+		for(; offsetI<size; ++i)
+		{
+			if(arr[i].centroid>arr[offsetI].centroid)
+			{
+				swapRefs(arr[i],arr[offsetI]);
 				swapped=true;
 			}
 			++offsetI;
