@@ -226,40 +226,6 @@ void sortDoubles(double* arr, int size)
 	}	
 }
 
-inline void swapRefs(RefFit& first, RefFit& second)
-{
-	RefFit swap = first;
-	first = second;
-	second = swap;
-}
-
-void sortRefs(RefFit* arr, int size)
-{
-	// comb sort
-	const float shrink = 1.3;
-	int gap = size;
-	bool swapped = false;
-	while(gap>1 || swapped)
-	{
-		if (gap>1)
-		{
-			gap = (int)(((float)gap)/shrink);
-		}
-		
-		int i=0;
-		int offsetI = gap;
-		swapped=false;
-		for(; offsetI<size; ++i)
-		{
-			if(arr[i].centroid>arr[offsetI].centroid)
-			{
-				swapRefs(arr[i],arr[offsetI]);
-				swapped=true;
-			}
-			++offsetI;
-		}
-	}	
-}
 /*
 
 //in place partitioning function
