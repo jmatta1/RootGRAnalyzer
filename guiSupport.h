@@ -144,7 +144,7 @@ struct CorrFit
 {
 	double centroid;
 	double width;
-	FitData& operator=(FitData& rhs){height=rhs.height; centroid=rhs.centroid; width=rhs.width; isAssign=rhs.isAssign; return *this;}
+	CorrFit& operator=(CorrFit& rhs){centroid=rhs.centroid; width=rhs.width; return *this;}
 };
 
 struct RefFit
@@ -152,7 +152,7 @@ struct RefFit
 	double centroid;
 	double width;
 	int refCount;
-	FitData& operator=(FitData& rhs){refCount=rhs.refCount; centroid=rhs.centroid; width=rhs.width; isAssign=rhs.isAssign; return *this;}
+	RefFit& operator=(RefFit& rhs){refCount=rhs.refCount; centroid=rhs.centroid; width=rhs.width; return *this;}
 };
 
 struct StateFit
@@ -228,7 +228,7 @@ void sortDoubles(double* arr, int size)
 
 inline void swapRefs(RefFit& first, RefFit& second)
 {
-	FitData swap = first;
+	RefFit swap = first;
 	first = second;
 	second = swap;
 }
