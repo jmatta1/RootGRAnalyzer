@@ -65,6 +65,8 @@ enum UpdateCallType{ Initial, Normal, Final};
 enum WidgetNumberings{ PolOrderEntry = 0};
 enum { MaxNumStates = 25, NumAngleCuts=9};
 
+double tempAngleFitInitParams[5]={0.0,1.0,0.0,0.0,0.0};
+
 TCut RayCut;
 
 class AberrationCorrectionWindow
@@ -220,8 +222,8 @@ private:
 	double tempOldExErrArr[MaxNumStates];
 	double tempCorrExArr[MaxNumStates];
 	double tempCorrExErrArr[MaxNumStates];
-	double tempAngleFitParams[exOrder][NumAngleCuts];
-	double tempAngleFitParamErrs[exOrder][NumAngleCuts];
+	double tempAngleFitParams[exOrder+1][NumAngleCuts];
+	double tempAngleFitParamErrs[exOrder+1][NumAngleCuts];
 	TF1* lastFit;
 	bool quickFitFirstTime;
 
@@ -1672,6 +1674,7 @@ void AberrationCorrectionWindow::prepInitialParams()
 	int numAngles=0;
 	for(int i=0; i<NumAngleCuts; ++i)
 	{
+		int tempInd = dispNum*MaxNumStates;
 		if(numPoints[i][dispNum]>1)
 		{
 			tempAngleArr[numAngles] = corrPts[i][tempInd+0].angle;
@@ -1711,12 +1714,16 @@ void AberrationCorrectionWindow::prepInitialParams()
 	//tell the user what the initia fit values were
 	logStrm<<"Done setting initial values, they are as follows"<<endl;
 	pushToLog();
-	for(int i=0; i<thOrder; ++i)
+	for(int i=0; i<=thOrder; ++i)
 	{
-		for(int j=0; j<exOrder; ++j)
+		for(int j=0; j<=exOrder; ++j)
 		{
 			logStrm<<"p"<<(i*exOrder+j)<<"  a"<<i<<","<<j<<"     ";
-			logStrm<<tempAberParams[i*exOrder+j]<<"\n";
+			logStrm<<tempAberParams[i*exOrder+j];
+			if(j!=exOrder)
+			{
+				logStrm<<"\n";
+			}
 		}
 		pushToLog();
 	}	
@@ -1726,21 +1733,25 @@ void AberrationCorrectionWindow::initFitSingleAngle(int numFitPts, int angleNum)
 {
 	//first create the TGraphErrors
 	TGraphErrors* tempAngleFitPts = new TGraphErrors(numFitPts,tempOldExArr,tempCorrExArr,tempOldExErrArr, tempCorrExErrArr);
+	tempAngleFitPts->Draw();
 	//write the polynomial in old ex energy that we are using
 	ostringstream formNamer;
 	formNamer<<"pol"<<exOrder<<"(0)";
 	string tempFormula = formNamer.str();
 	//create the fitting function
 	TF1* tempAngleFitFunc = new TF1("tempAngleFitFormula",tempFormula.c_str(),0.6*tempOldExArr[0],1.4*tempOldExArr[numFitPts-1]);
+	tempAngleFitFunc->SetParamerters(tempAngleFitInitParams);
 	//do the fit using the minuit fitter, no plotting, and using the range that was specified in the function
 	tempAngleFitPts->Fit(tempAngleFitFunc,"F O R","");
-	tempAngleFitPts->Print();
+	tempAngleFitFunc->Print();
+	tempAngleFitFunc->Draw("same");
 	//grab the fitted parameters
 	double* angleFitParams = tempAngleFitFunc->GetParameters();
 	double* angleFitParamErrs = tempAngleFitFunc->GetParErrors();
 	//transfer the parameters into the temporary array for them
 	for(int i=0; i<=exOrder; ++i)
 	{
+		cout<<"j "<<i<<"  "<<angleFitParams[i]<<" +- "<<angleFitParamErrs[i]<<endl;
 		tempAngleFitParams[i][angleNum] = angleFitParams[i];
 		tempAngleFitParamErrs[i][angleNum] = angleFitParamErrs[i];
 	}
@@ -1761,11 +1772,11 @@ void AberrationCorrectionWindow::initFitSingleParamSet(int paramNum, int numAngl
 	TF1* tempParamFitFunc = new TF1("tempParamFitFormula",tempFormula.c_str(),1.4*tempAngleArr[0],1.4*tempAngleArr[numAngles-1]);
 	//do the fit using the minuit fitter, no plotting, and using the range that was specified in the function
 	tempParamFitPts->Fit(tempParamFitFunc,"F O R","");
-	tempParamFitPts->Print();
+	tempParamFitFunc->Print();
 	//grab the fitted parameters we do not need the errors from this because these are serving as initial points for a more
 	//global fit instead of as points feeding into another fit function
-	double* paramFitParams = tempAngleFitFunc->GetParameters();
-	for(int i=0; i<thOrder; ++i)
+	double* paramFitParams = tempParamFitFunc->GetParameters();
+	for(int i=0; i<=thOrder; ++i)
 	{
 		tempAberParams[i*exOrder+paramNum] = paramFitParams[i];
 	}

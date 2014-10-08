@@ -119,7 +119,7 @@ struct CorrectionPoint
 	double correctEx;
 	double correctWidth;
 	int stateIndex;
-	CorrectionPoint& operator=(CorrectionPoint& rhs){angle=rhs.angle; angleW=rhs.angleW oldEx=rhs.oldEx; correctEx=rhs.correctEx;
+	CorrectionPoint& operator=(CorrectionPoint& rhs){angle=rhs.angle; angleW=rhs.angleW; oldEx=rhs.oldEx; correctEx=rhs.correctEx;
 		oldWidth=rhs.oldWidth; correctWidth=rhs.correctWidth; stateIndex=rhs.stateIndex; return *this;}
 };
 
