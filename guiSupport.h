@@ -79,6 +79,11 @@ double correctionFunction(double *x, double *par)
 	return result;
 }
 
+inline double absVal(double val)
+{
+	return ((val<0)?(-val):(val));
+}
+
 struct CorrFunc
 {
 	int runNum;
@@ -108,10 +113,14 @@ struct CorrFunc
 struct CorrectionPoint
 {
 	double angle;
+	double angleW;
 	double oldEx;
+	double oldWidth;
 	double correctEx;
+	double correctWidth;
 	int stateIndex;
-	CorrectionPoint& operator=(CorrectionPoint& rhs){angle=rhs.angle; oldEx=rhs.oldEx; correctEx=rhs.correctEx; stateIndex=rhs.stateIndex; return *this;}
+	CorrectionPoint& operator=(CorrectionPoint& rhs){angle=rhs.angle; angleW=rhs.angleW oldEx=rhs.oldEx; correctEx=rhs.correctEx;
+		oldWidth=rhs.oldWidth; correctWidth=rhs.correctWidth; stateIndex=rhs.stateIndex; return *this;}
 };
 
 
