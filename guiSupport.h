@@ -55,8 +55,12 @@ const char *peakFitFormulas[maxPeaks][numBgTypes] =
 };
 
 const int exOrder=4;
+const int exSize=5;
 const int thOrder=4;
 const int numParams=25;
+
+const double tempAngleFitInitParams[5]={0.0,1.0,0.0,0.0,0.0};
+double tempParamFitInitParams[5]={0.0,0.0,0.0,0.0,0.0};
 
 double correctionFunction(double *x, double *par)
 {
@@ -68,7 +72,7 @@ double correctionFunction(double *x, double *par)
 	for(int i=0; i<=thOrder; ++i)
 	{
 		tempEx=1.0;
-		int intermediate = (i*exOrder);
+		int intermediate = (i*exSize);
 		for(int j=0; j<=exOrder; ++j)
 		{
 			result += (par[intermediate+j]*tempEx*tempTh);
@@ -94,11 +98,11 @@ struct CorrFunc
 		double result = 0.0;
 		double tempEx=1.0;
 		double tempTh=1.0;
-		for(int i=0; i<thOrder; ++i)
+		for(int i=0; i<=thOrder; ++i)
 		{
 			tempEx=1.0;
-			int intermediate = (i*exOrder);
-			for(int j=0; j<exOrder; ++j)
+			int intermediate = (i*exSize);
+			for(int j=0; j<=exOrder; ++j)
 			{
 				result += (params[intermediate+j]*tempEx*tempTh);
 				tempEx*=oldEx;
