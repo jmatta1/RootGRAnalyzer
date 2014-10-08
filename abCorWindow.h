@@ -53,7 +53,8 @@ using std::ios_base;
 #include<TPluginManager.h>
 #include<TList.h>
 #include<TPolyMarker.h>
-#include<TGraph2D.h>
+#include<TGraph2DErrors.h>
+#include<TGraphErrors.h>
 #include<TF2.h>
 
 //my includes
@@ -62,9 +63,7 @@ using std::ios_base;
 
 enum UpdateCallType{ Initial, Normal, Final};
 enum WidgetNumberings{ PolOrderEntry = 0};
-enum { MaxNumStates = 30};
-
-enum {NumAngleCuts=9};
+enum { MaxNumStates = 25, NumAngleCuts=9};
 
 TCut RayCut;
 
@@ -82,6 +81,7 @@ public:
 	
 	//Fit control
 	void transferFit();
+	void transferAllFit();
 	void removeFit();
 	void assignFitToState(int stNum);
 	void unAssignFitToState(int stNum);
@@ -106,7 +106,6 @@ public:
 	void openBigFile();
 	void openAuxFile();
 	void openFriendFile();
-	void readStateData();
 	
 	//overall control operations
 	void clearLog();
@@ -131,6 +130,9 @@ private:
 	void loadTempFitComboBoxFromArray();
 	void clearTempFits();
 	void drawGraphOfPoints();
+	void prepInitialParams();
+	void initFitSingleAngle(int numFitPts, int angleNum);
+	void initFitSingleParamSet(int paramNum, int numAngles);
 	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
@@ -193,25 +195,33 @@ private:
 	
 	//analysis stuff
 	RunData* runs;
-	double* tempPeaks;
+	CorrFit* tempPeaks;
 	double quickFitPos[7];
 	double tempHistVals[7];
 	double tempParams[18];
 	int numTempPeaks;
 	RefFit** states;
+	int* numStates;
 	StateFit** pkAssigns;
-	bool statesSet;
 	CorrectionPoint** corrPts;
 	int** numPoints;
 	int numRuns;
-	//int numStates;
 	TFile* mainFile;
 	TFile* auxFile;
 	TFile* frFile;
 	int currBGOrder;
 	int numPeaks;
-	TGraph2D** corrGraph;
+	TGraph2DErrors** corrGraph;
 	TF2** corrFit;
+	double tempAberParams[numParams];
+	double tempAngleArr[NumAngleCuts];
+	double tempAngleErrArr[NumAngleCuts];
+	double tempOldExArr[MaxNumStates];
+	double tempOldExErrArr[MaxNumStates];
+	double tempCorrExArr[MaxNumStates];
+	double tempCorrExErrArr[MaxNumStates];
+	double tempAngleFitParams[exOrder][NumAngleCuts];
+	double tempAngleFitParamErrs[exOrder][NumAngleCuts];
 	TF1* lastFit;
 	bool quickFitFirstTime;
 
@@ -302,6 +312,7 @@ private:
 	TGTextButton* doRebin;
 	TGComboBox* tempFitBox;
 	TGTextButton* useFit;
+	TGTextButton* useAllFits;
 	TGComboBox* fitListBox;
 	TGTextButton* rmFit;
 	TGTextButton* addState;
@@ -339,7 +350,7 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	numTempPeaks=0;
 	states=NULL;
 	numRuns=0;
-	//numStates=0;
+	numStates=NULL;
 	mainFile=NULL;
 	auxFile=NULL;
 	frFile=NULL;
@@ -360,7 +371,6 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 		corrPts[i]=NULL;
 		pkAssigns[i]=NULL;
 	}
-	statesSet=false;
 	maxAngle=0.05;
 	minAngle=-0.05;
 	angleInd=4;
@@ -452,6 +462,8 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	tempFitBox->Resize(100,20);
 	useFit = new TGTextButton(sideBarFrame,"Use Peak");
 	useFit->Connect("Clicked()","AberrationCorrectionWindow",this,"transferFit()");
+	useAllFits = new TGTextButton(sideBarFrame,"Use All Peaks");
+	useAllFits->Connect("Clicked()","AberrationCorrectionWindow",this,"transferAllFit()");
 	fitListBox = new TGComboBox(sideBarFrame);
 	fitListBox->AddEntry("Peaks",0);
 	fitListBox->Select(0);
@@ -464,11 +476,12 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	stateListBox->AddEntry("Ref. Peaks",0);
 	stateListBox->Select(0);
 	stateListBox->Resize(100,20);
-	rmState = new TGTextButton(sideBarFrame,"Make Ref. Peak");
+	rmState = new TGTextButton(sideBarFrame,"Remove Ref. Peak");
 	rmState->Connect("Clicked()","AberrationCorrectionWindow",this,"rmPkRef()");
 	
 	sideBarFrame->AddFrame(tempFitBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(useFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(useAllFits, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(fitListBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(rmFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(addState, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
@@ -564,9 +577,6 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	//Open friend file button
 	opFrFile = new TGTextButton(fileOpsRowFrame,"Open Friend File");
 	opFrFile->Connect("Clicked()","AberrationCorrectionWindow",this,"openFriendFile()");
-	//Read State Data Button
-	rdStateData = new TGTextButton(fileOpsRowFrame,"Read State Data");
-	rdStateData->Connect("Clicked()","AberrationCorrectionWindow",this,"readStateData()");
 	
 	
 	//add file operations buttons to their frame
@@ -574,7 +584,6 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	fileOpsRowFrame->AddFrame(opBigFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	fileOpsRowFrame->AddFrame(opAuxFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	fileOpsRowFrame->AddFrame(opFrFile, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
-	fileOpsRowFrame->AddFrame(rdStateData, new TGLayoutHints(kLHintsExpandX,3,3,2,2));
 	
 	//add the file operations frame to its frame
 	bottomFrame->AddFrame(fileOpsRowFrame, new TGLayoutHints(kLHintsExpandX | kLHintsTop, 2,2,2,2) );
@@ -784,7 +793,8 @@ void AberrationCorrectionWindow::readRunData()
 	//allocate the runs array
 	runs = new RunData[numRuns];
 	states = new RefFit*[numRuns];
-	corrGraph = new TGraph2D*[numRuns];
+	numStates = new int[numRuns];
+	corrGraph = new TGraph2DErrors*[numRuns];
 	corrFit = new TF2*[numRuns];
 	for(int i=0; i<NumAngleCuts; ++i)
 	{
@@ -793,6 +803,7 @@ void AberrationCorrectionWindow::readRunData()
 	for(int i =0; i<numRuns; ++i)
 	{
 		states[i] = NULL;
+		numStates[i] = 0;
 		corrGraph[i] = NULL;
 		corrFit[i] = NULL;
 		for(int j=0; j<NumAngleCuts; ++j)
@@ -887,7 +898,7 @@ void AberrationCorrectionWindow::openAuxFile()
 	directory = fileInfo.fIniDir;
 	
 	//open the aux file
-	auxFile = new TFile(temp.c_str(),"UPDATE");
+	auxFile = new TFile(temp.c_str(),"READ");
 	logStrm<<"\nAux File Opened";
 	pushToLog();
 }
@@ -926,12 +937,12 @@ void AberrationCorrectionWindow::openFriendFile()
 	directory = fileInfo.fIniDir;
 	
 	//open the aux file
-	frFile = new TFile(temp.c_str(),"UPDATE");
+	frFile = new TFile(temp.c_str(),"READ");
 	logStrm<<"\nFriend File Opened";
 	pushToLog();
 	
 	//allocate stuff
-	tempPeaks = new double[MaxNumStates];
+	tempPeaks = new CorrFit[MaxNumStates];
 	//allocate the states array
 	for(int i=0; i<numRuns; ++i)
 	{
@@ -960,106 +971,6 @@ void AberrationCorrectionWindow::openFriendFile()
 	displaySubSpec(Initial);
 }
 
-/*
-void AberrationCorrectionWindow::readStateData()
-{
-	if(!checkUpToFrFile())
-	{ return; }
-	if (statesSet)
-	{
-		logStrm<<"\nState data already loaded, to load new run data, use the reset button";
-		pushToLog();
-		return;
-	}
-	statesSet = true;
-	//get the file name using a file dialog
-	static TString directory(".");
-	TGFileInfo fileInfo;
-	fileInfo.SetMultipleSelection(false);
-	fileInfo.fFileTypes = csvDataType;
-	fileInfo.fIniDir = StrDup(directory);
-	
-	numStates=0;
-	//make the open file dialog
-	//quite frankly this creeps me the hell out, just creating an object like this
-	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDOpen, &fileInfo);
-	//cout<<fileInfo.fFilename<<", "<<fileInfo.fIniDir;
-	directory = fileInfo.fIniDir;
-	
-	if(TString(fileInfo.fFilename).IsNull())
-	{
-		return;
-	}
-	
-	ifstream input;
-	input.open(fileInfo.fFilename);
-	
-	//count the number of lines
-	string line;
-	while (getline(input, line))
-	{
-		if(line.length()>0)//to handle blank lines at the end of a file
-		{
-			++numStates;
-		}
-		else
-		{
-			break;
-		}
-	}
-	//allocate the temp peaks array now that we know how many states there are
-	tempPeaks = new double[numStates];
-	//jump back to the beginning
-	input.clear();
-	input.seekg(0,ios_base::beg);
-	//allocate the states array
-	for(int i=0; i<numRuns; ++i)
-	{
-		states[i] = new StateData[numStates];
-	}
-	//allocate the corr points arrays
-	for(int k=0; k<NumAngleCuts; ++k)
-	{
-		corrPts[k] = new CorrectionPoint[numRuns*numStates];
-		pkAssigns[k] = new StateFit[numRuns*numStates];
-		for(int i=0; i<numRuns; ++i)
-		{
-			for(int j=0; j<numStates; ++j)
-			{
-				corrPts[k][i*numStates+j].stateIndex=-1;
-				corrPts[k][i*numStates+j].correctEx=-1.0;
-				pkAssigns[k][i*numStates+j].isSet=false;
-				pkAssigns[k][i*numStates+j].ftInd=-1;
-			}
-		}
-	}
-	//now read line by line to get the run data
-	getline(input, line);
-	int count = 0;
-
-	while(!input.eof() && count<numStates)
-	{
-		istringstream conv;
-		conv.str(line);
-		float temp;
-		conv>>temp;
-		for(int i=0; i<numRuns; ++i)
-		{
-			states[i][count].en = (temp/1000.0);
-		}
-		getline(input, line);
-		++count;
-	}
-	logStrm<<"\nState data has been loaded";
-	pushToLog();
-	
-	//generate state window
-	generateStateInfo();
-	//display the spectrum
-	displaySubSpec(Initial);
-}
-*/
 /******************************************
 *******************************************
 ** fit / state window operations
@@ -1104,16 +1015,6 @@ void AberrationCorrectionWindow::generateStateInfo()
 		stateVert[4]->AddFrame(assignButtons[i], cellLayout);
 	}
 	
-	//now write in the excitation energies
-	ostringstream cell;
-	for(int i=0; i<MaxNumStates; ++i)
-	{
-		cell.str("");
-		cell.clear();
-		cell<<states[0][i].centroid<<" MeV";
-		exEntry[i]->SetText(cell.str().c_str());
-	}
-	
 	mainWindow->MapSubwindows();
 	mainWindow->MapWindow();
 	mainWindow->Layout();
@@ -1123,9 +1024,23 @@ void AberrationCorrectionWindow::generateStateInfo()
 void AberrationCorrectionWindow::updateStateInfo()
 {
 	int tempInd=dispNum*MaxNumStates;
-	//iterate through the set of correction points and put the appropriate ones in their asigned fit boxes
+	//iterate through the set of correction points and states, putting the appropriate ones in their assigned spots
 	for(int i=0; i<MaxNumStates; ++i)
 	{
+		if( i<numStates[dispNum] )
+		{
+			//add to the list of states in the assignement pane
+			ostringstream cell;
+			cell.str("");
+			cell.clear();
+			cell<<states[0][i].centroid<<" MeV";
+			string temp = cell.str();
+			exEntry[i]->SetText(temp.c_str());
+		}
+		else
+		{
+			exEntry[i]->SetText("");
+		}
 		if(pkAssigns[angleInd][tempInd+i].isSet)
 		{
 			int index = pkAssigns[angleInd][tempInd+i].ftInd + tempInd;
@@ -1149,10 +1064,19 @@ void AberrationCorrectionWindow::updateComboBoxes()
 	//first clear the fit lists and the possible fit lists
 	fitListBox->RemoveEntries(1,MaxNumStates+1);
 	fitListBox->Select(0);
+	stateListBox->RemoveEntries(1,MaxNumStates+1);
+	stateListBox->Select(0);
 	for(int i=0; i<MaxNumStates; ++i)
 	{
 		fitBox[i]->RemoveEntries(1,MaxNumStates+1);
 		fitBox[i]->Select(0);
+		if(i<numStates[dispNum])
+		{
+			ostringstream cell;
+			cell<<"Pk: "<<states[dispNum][i].centroid<<" MeV";
+			string temp = cell.str();
+			stateListBox->AddEntry(temp.c_str(),i+1);
+		}
 	}
 	//iterate through the set of correction points and put them all in the fitListBox
 	//put unassigned ones in the assign state drop downs
@@ -1178,7 +1102,14 @@ void AberrationCorrectionWindow::updateComboBoxes()
 
 void AberrationCorrectionWindow::assignFitToState(int stNum)
 {
-	//first get the state to be assigned from the combo box
+	//check if there is even a state in the region selected
+	if(stNum>=numStates[dispNum])
+	{
+		logStrm<<"No State to assign fit to"<<endl;
+		pushToLog();
+		return;
+	}
+	//get the state to be assigned from the combo box
 	int id = (fitBox[stNum]->GetSelected()-1);
 	if(id==-1)
 	{
@@ -1197,14 +1128,27 @@ void AberrationCorrectionWindow::assignFitToState(int stNum)
 	//otherwise the state is unassigned, assign it
 	corrPts[angleInd][tempInd+id].stateIndex = stNum;
 	corrPts[angleInd][tempInd+id].correctEx = states[dispNum][stNum].centroid;
+	double peakErrorSqr = (corrPts[angleInd][tempInd+id].oldWidth*corrPts[angleInd][tempInd+id].oldWidth);
+	double stateErrorSqr = (states[dispNum][stNum].width*states[dispNum][stNum].width);
+	double errorSquareSum = (peakErrorSqr + stateErrorSqr);
+	double corrError = TMath::Sqrt(errorSquareSum);
+	corrPts[angleInd][tempInd+id].correctWidth = corrError;
 	pkAssigns[angleInd][tempInd+stNum].isSet = true;
 	pkAssigns[angleInd][tempInd+stNum].ftInd = id;
+	++(states[dispNum][stNum].refCount);
 	updateComboBoxes();
 	updateStateInfo();
 }
 
 void AberrationCorrectionWindow::unAssignFitToState(int stNum)
 {
+	//check if there is even a state in the region selected
+	if(stNum>=numStates[dispNum])
+	{
+		logStrm<<"No State to assign fit to"<<endl;
+		pushToLog();
+		return;
+	}
 	//check if this state has a fit assigned
 	int tempInd=dispNum*MaxNumStates;
 	if(!(pkAssigns[angleInd][tempInd+stNum].isSet))
@@ -1217,8 +1161,10 @@ void AberrationCorrectionWindow::unAssignFitToState(int stNum)
 	//otherwise the state is assigned, assign it
 	corrPts[angleInd][tempInd+offset].stateIndex = -1;
 	corrPts[angleInd][tempInd+offset].correctEx = -1.0;
+	corrPts[angleInd][tempInd+offset].correctWidth = -1.0;
 	pkAssigns[angleInd][tempInd+stNum].isSet = false;
 	pkAssigns[angleInd][tempInd+stNum].ftInd = -1;
+	--(states[dispNum][stNum].refCount);
 	updateComboBoxes();
 	updateStateInfo();
 }
@@ -1264,14 +1210,15 @@ void AberrationCorrectionWindow::getFitData()
 	}
 	//read the fit data
 	double* values = fit->GetParameters();
+	double* errors = fit->GetParErrors();
 	//clear the temp fit combobox
 	tempFitBox->RemoveEntries(1,MaxNumStates+10);
 	numTempPeaks = numPeaks;
 	for(int i=0; i<numPeaks; ++i)
 	{
-		tempPeaks[i] = values[3*i+1];
+		tempPeaks[i].centroid = values[3*i+1];
+		tempPeaks[i].width = errors[3*i+1];
 	}
-	sortDoubles(tempPeaks, numTempPeaks);
 	loadTempFitComboBoxFromArray();
 }
 
@@ -1398,14 +1345,15 @@ void AberrationCorrectionWindow::doQuickFit()
 	//as if the get fit data button was clicked when using the fit panel
 	//read the fit data
 	double* values = tempQuickFit->GetParameters();
+	double* errors = tempQuickFit->GetParErrors();
 	//clear the temp fit combobox
 	tempFitBox->RemoveEntries(1,MaxNumStates+10);
 	numTempPeaks = numPeaks;
 	for(int i=0; i<numPeaks; ++i)
 	{
-		tempPeaks[i] = values[3*i+1];
+		tempPeaks[i].centroid = values[3*i+1];
+		tempPeaks[i].width = errors[3*i+1];
 	}
-	sortDoubles(tempPeaks, numTempPeaks);
 	loadTempFitComboBoxFromArray();
 	//cleanup
 	delete tempQuickFit;
@@ -1435,7 +1383,7 @@ void AberrationCorrectionWindow::transferFit()
 		return;
 	}
 	//otherwise, remove the peak from the temporary array, adding it to the points for usage array
-	float selectedEx = tempPeaks[id-1];
+	CorrFit selectedEx = tempPeaks[id-1];
 	for(int i=id; i<numTempPeaks; ++i)
 	{
 		tempPeaks[i-1]=tempPeaks[i];
@@ -1445,8 +1393,11 @@ void AberrationCorrectionWindow::transferFit()
 	int index = dispNum*MaxNumStates+(numPoints[angleInd][dispNum]);
 	//CorrectionPoint* tempPt = corrPts[angleInd];
 	corrPts[angleInd][index].angle=((minAngle+maxAngle)/2.0);
-	corrPts[angleInd][index].oldEx=selectedEx;
+	corrPts[angleInd][index].angleW=((maxAngle-minAngle)/2.0);
+	corrPts[angleInd][index].oldEx=selectedEx.centroid;
+	corrPts[angleInd][index].oldWidth=absVal(selectedEx.width);
 	corrPts[angleInd][index].correctEx=-1.0;
+	corrPts[angleInd][index].correctWidth=-1.0;
 	corrPts[angleInd][index].stateIndex=-1;
 	/*(corrPts[angleInd][index]).angle=((minAngle+maxAngle)/2.0);
 	(corrPts[angleInd][index]).oldEx=selectedEx;
@@ -1456,6 +1407,45 @@ void AberrationCorrectionWindow::transferFit()
 	//then add the fit to the various combo boxes, then update them
 	loadTempFitComboBoxFromArray();
 	updateComboBoxes();
+	updateStateInfo();
+}
+
+void AberrationCorrectionWindow::transferAllFit()
+{
+	if((numPoints[angleInd][dispNum]+numTempPeaks)>=MaxNumStates)
+	{
+		logStrm<<"Too Many Peaks, not all will fit, try removing some peaks";
+		pushToLog();
+		return;
+	}
+	if(numTempPeaks==0)
+	{
+		logStrm<<"No peaks to transfer";
+		pushToLog();
+		return;
+	}
+	for(int i=0; i<numTempPeaks; ++i)
+	{
+		int index = dispNum*MaxNumStates+(numPoints[angleInd][dispNum]);
+		//CorrectionPoint* tempPt = corrPts[angleInd];
+		corrPts[angleInd][index].angle=((minAngle+maxAngle)/2.0);
+		corrPts[angleInd][index].angleW=((maxAngle-minAngle)/2.0);
+		corrPts[angleInd][index].oldEx=tempPeaks[i].centroid;
+		corrPts[angleInd][index].oldWidth=absVal(tempPeaks[i].width);
+		corrPts[angleInd][index].correctEx=-1.0;
+		corrPts[angleInd][index].correctWidth=-1.0;
+		corrPts[angleInd][index].stateIndex=-1;
+		/*(corrPts[angleInd][index]).angle=((minAngle+maxAngle)/2.0);
+		(corrPts[angleInd][index]).oldEx=selectedEx;
+		(corrPts[angleInd][index]).correctEx=-1.0;
+		(corrPts[angleInd][index]).stateIndex=-1;*/
+		++(numPoints[angleInd][dispNum]);
+	}
+	numTempPeaks=0;
+	//then add the fit to the various combo boxes, then update them
+	loadTempFitComboBoxFromArray();
+	updateComboBoxes();
+	updateStateInfo();
 }
 
 void AberrationCorrectionWindow::removeFit()
@@ -1485,7 +1475,8 @@ void AberrationCorrectionWindow::removeFit()
 	int index = dispNum*MaxNumStates+(numPoints[angleInd][dispNum]);
 	corrPts[angleInd][index].stateIndex=-1;
 	//update all the combo boxes
-	updateComboBoxes();	
+	updateComboBoxes();
+	updateStateInfo();
 }
 
 void AberrationCorrectionWindow::loadTempFitComboBoxFromArray()
@@ -1494,7 +1485,7 @@ void AberrationCorrectionWindow::loadTempFitComboBoxFromArray()
 	for(int i=0; i<numTempPeaks; ++i)
 	{
 		ostringstream namer;
-		namer<<"Pk: "<<tempPeaks[i];
+		namer<<"Pk: "<<tempPeaks[i].centroid;
 		tempFitBox->AddEntry(namer.str().c_str(),i+1);
 	}
 	tempFitBox->Select(0);
@@ -1507,18 +1498,62 @@ void AberrationCorrectionWindow::clearTempFits()
 	loadTempFitComboBoxFromArray();
 }
 
-/*
-	TGComboBox* stateListBox;
-*/
-
 void AberrationCorrectionWindow::addPkRef()
 {
-
+	if(!checkUpToFrFile())
+	{return;}
+	if(numStates[dispNum] >= MaxNumStates)
+	{
+		logStrm<<"Already have the maximum number of States assigned, remove one to add another";
+		pushToLog();
+		return;
+	}
+	int id = fitListBox->GetSelected();
+	if(id==0)
+	{
+		logStrm<<"No Peak Selected";
+		pushToLog();
+		return;
+	}
+	int ind=(id-1);
+	//add the peak to the end of the state list
+	int insertIndex = numStates[dispNum];
+	states[dispNum][insertIndex].centroid = corrPts[angleInd][dispNum*MaxNumStates+ind].oldEx;
+	states[dispNum][insertIndex].width = corrPts[angleInd][dispNum*MaxNumStates+ind].oldWidth;
+	states[dispNum][insertIndex].refCount=0;
+	++(numStates[dispNum]);
+	//update the state info box
+	updateComboBoxes();
+	updateStateInfo();
 }
 
 void AberrationCorrectionWindow::rmPkRef()
 {
-
+	if(!checkUpToFrFile())
+	{return;}
+	int id = stateListBox->GetSelected();
+	if(id==0)
+	{
+		logStrm<<"No Peak Selected";
+		pushToLog();
+		return;
+	}
+	int ind=(id-1);
+	if(states[dispNum][ind].refCount!=0)
+	{
+		logStrm<<"Cannot remove references peaks while fits are assigned to them";
+		pushToLog();
+		return;
+	}
+	//remove the peak from the state list
+	int maxInd = (numStates[dispNum]-1);
+	for(int i=ind; i<maxInd; ++i)
+	{
+		states[dispNum][i]=states[dispNum][i+1];
+	}
+	--(numStates[dispNum]);
+	updateComboBoxes();
+	updateStateInfo();
 }
 
 int AberrationCorrectionWindow::dispCorrPts()
@@ -1527,7 +1562,7 @@ int AberrationCorrectionWindow::dispCorrPts()
 	{
 		delete corrGraph[dispNum];
 	}
-	corrGraph[dispNum] = new TGraph2D;
+	corrGraph[dispNum] = new TGraph2DErrors;
 	//now iterate through all the correction points for this run and add them one by one to the graph
 	int tempInd = dispNum*MaxNumStates;
 	int count=0;
@@ -1541,10 +1576,13 @@ int AberrationCorrectionWindow::dispCorrPts()
 			if(corrPts[i][tempInd+j].stateIndex!=-1)
 			{	
 				double oldEx = corrPts[i][tempInd+j].oldEx;
+				double oldWidth = corrPts[i][tempInd+j].oldWidth;
 				double angle = corrPts[i][tempInd+j].angle;
+				double angleW = corrPts[i][tempInd+j].angleW;
 				double correctEx = corrPts[i][tempInd+j].correctEx;
-				cout<<oldEx<<", "<<angle<<", "<<correctEx<<", "<<(correctEx-oldEx)<<endl;
-				corrGraph[dispNum]->SetPoint(count, oldEx, angle, correctEx-oldEx);
+				double correctWidth = corrPts[i][tempInd+j].correctWidth;
+				corrGraph[dispNum]->SetPoint(count, oldEx, angle, correctEx);
+				corrGraph[dispNum]->SetPointError(count, oldWidth, angleW, correctWidth);
 				++count;
 				gotPts=true;
 			}
@@ -1564,8 +1602,8 @@ int AberrationCorrectionWindow::dispCorrPts()
 	gPad->SetLogy(0);
 	corrGraph[dispNum]->SetMarkerSize(2);
 	corrGraph[dispNum]->SetMarkerStyle(8);
-	corrGraph[dispNum]->SetMargin(0.2);
-	corrGraph[dispNum]->Draw("PCOL");
+	corrGraph[dispNum]->SetMargin(0.4);
+	corrGraph[dispNum]->Draw("PCOL ERR");
 	whiteBoard->Update();
 	return angleCount;
 }
@@ -1576,8 +1614,8 @@ void AberrationCorrectionWindow::drawGraphOfPoints()
 	corrGraph[dispNum]->SetMarkerSize(2);
 	corrGraph[dispNum]->SetMarkerColor(1);
 	corrGraph[dispNum]->SetMarkerStyle(8);
-	corrGraph[dispNum]->SetMargin(0.2);
-	corrGraph[dispNum]->Draw("SAME PO");
+	corrGraph[dispNum]->SetMargin(0.4);
+	corrGraph[dispNum]->Draw("SAME PO ERR");
 	whiteBoard->Update();
 }
 
@@ -1594,8 +1632,8 @@ void AberrationCorrectionWindow::doFitCorr()
 		int temp = dispCorrPts();
 		if(temp>1)
 		{
-			corrGraph[dispNum]->Fit(corrFit[dispNum],"WOM");
-			corrFit[dispNum]->SetRange(0.8*corrGraph[dispNum]->GetXmin(),1.2*corrGraph[dispNum]->GetYmin(),1.2*corrGraph[dispNum]->GetXmax(),1.2*corrGraph[dispNum]->GetYmax());
+			corrGraph[dispNum]->Fit(corrFit[dispNum],"O M");
+			corrFit[dispNum]->SetRange(0.6*corrGraph[dispNum]->GetXmin(),1.4*corrGraph[dispNum]->GetYmin(),1.4*corrGraph[dispNum]->GetXmax(),1.4*corrGraph[dispNum]->GetYmax());
 			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
 		}
@@ -1612,8 +1650,10 @@ void AberrationCorrectionWindow::doFitCorr()
 		int temp = dispCorrPts();
 		if(temp>1)
 		{
-			corrGraph[dispNum]->Fit(corrFit[dispNum],"WO");
-			corrFit[dispNum]->SetRange(0.8*corrGraph[dispNum]->GetXmin(),1.2*corrGraph[dispNum]->GetYmin(),1.2*corrGraph[dispNum]->GetXmax(),1.2*corrGraph[dispNum]->GetYmax());
+			prepInitialParams();
+			corrFit[dispNum]->SetParameters(tempAberParams);
+			corrGraph[dispNum]->Fit(corrFit[dispNum],"O");
+			corrFit[dispNum]->SetRange(0.6*corrGraph[dispNum]->GetXmin(),1.4*corrGraph[dispNum]->GetYmin(),1.4*corrGraph[dispNum]->GetXmax(),1.4*corrGraph[dispNum]->GetYmax());
 			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
 		}
@@ -1624,6 +1664,114 @@ void AberrationCorrectionWindow::doFitCorr()
 			return;
 		}
 	}
+}
+
+void AberrationCorrectionWindow::prepInitialParams()
+{
+	//first iterate through the list of points, load the temp arrays when appropriate
+	int numAngles=0;
+	for(int i=0; i<NumAngleCuts; ++i)
+	{
+		if(numPoints[i][dispNum]>1)
+		{
+			tempAngleArr[numAngles] = corrPts[i][tempInd+0].angle;
+			tempAngleErrArr[numAngles] = corrPts[i][tempInd+0].angleW;
+			++numAngles;
+		}
+		else
+		{
+			logStrm<<"Not enough points in angle cut "<<i<<" to do an initial parameter fit estimate\n";
+			logStrm<<"Moving to next angle";
+			pushToLog();
+			continue;
+		}
+		int count = 0;
+		for(int j=0; j<numPoints[i][dispNum]; ++j)
+		{
+			if(corrPts[i][tempInd+j].stateIndex!=-1)
+			{	
+				tempOldExArr[count] = corrPts[i][tempInd+j].oldEx;
+				tempOldExErrArr[count] = corrPts[i][tempInd+j].oldWidth;
+				tempCorrExArr[count] = corrPts[i][tempInd+j].correctEx;
+				tempCorrExErrArr[count] = corrPts[i][tempInd+j].correctWidth;
+				++count;
+			}
+		}
+		//now fit the temporary data points
+		initFitSingleAngle(count, numAngles-1);
+	}
+	logStrm<<"Done with angle fits, proceding to param range fits";
+	pushToLog();
+	//now that we have the initial sets of parameters extracted, now we get the
+	//theta dependence out of the parameters with additional fits
+	for(int i=0; i<exOrder; ++i)
+	{
+		initFitSingleParamSet(i,numAngles);
+	}
+	//tell the user what the initia fit values were
+	logStrm<<"Done setting initial values, they are as follows"<<endl;
+	pushToLog();
+	for(int i=0; i<thOrder; ++i)
+	{
+		for(int j=0; j<exOrder; ++j)
+		{
+			logStrm<<"p"<<(i*exOrder+j)<<"  a"<<i<<","<<j<<"     ";
+			logStrm<<tempAberParams[i*exOrder+j]<<"\n";
+		}
+		pushToLog();
+	}	
+}
+
+void AberrationCorrectionWindow::initFitSingleAngle(int numFitPts, int angleNum)
+{
+	//first create the TGraphErrors
+	TGraphErrors* tempAngleFitPts = new TGraphErrors(numFitPts,tempOldExArr,tempCorrExArr,tempOldExErrArr, tempCorrExErrArr);
+	//write the polynomial in old ex energy that we are using
+	ostringstream formNamer;
+	formNamer<<"pol"<<exOrder<<"(0)";
+	string tempFormula = formNamer.str();
+	//create the fitting function
+	TF1* tempAngleFitFunc = new TF1("tempAngleFitFormula",tempFormula.c_str(),0.6*tempOldExArr[0],1.4*tempOldExArr[numFitPts-1]);
+	//do the fit using the minuit fitter, no plotting, and using the range that was specified in the function
+	tempAngleFitPts->Fit(tempAngleFitFunc,"F O R","");
+	tempAngleFitPts->Print();
+	//grab the fitted parameters
+	double* angleFitParams = tempAngleFitFunc->GetParameters();
+	double* angleFitParamErrs = tempAngleFitFunc->GetParErrors();
+	//transfer the parameters into the temporary array for them
+	for(int i=0; i<=exOrder; ++i)
+	{
+		tempAngleFitParams[i][angleNum] = angleFitParams[i];
+		tempAngleFitParamErrs[i][angleNum] = angleFitParamErrs[i];
+	}
+	//clean up after ourselves
+	delete tempAngleFitFunc;
+	delete tempAngleFitPts;
+}
+
+void AberrationCorrectionWindow::initFitSingleParamSet(int paramNum, int numAngles)
+{
+	//create the TGraphErrors for this run
+	TGraphErrors* tempParamFitPts = new TGraphErrors(numAngles, tempAngleArr, tempAngleFitParams[paramNum], tempAngleErrArr, tempAngleFitParamErrs[paramNum]);
+	//write the polynomial in angle that we are using
+	ostringstream formNamer;
+	formNamer<<"pol"<<thOrder<<"(0)";
+	string tempFormula = formNamer.str();
+	//create the fitting function
+	TF1* tempParamFitFunc = new TF1("tempParamFitFormula",tempFormula.c_str(),1.4*tempAngleArr[0],1.4*tempAngleArr[numAngles-1]);
+	//do the fit using the minuit fitter, no plotting, and using the range that was specified in the function
+	tempParamFitPts->Fit(tempParamFitFunc,"F O R","");
+	tempParamFitPts->Print();
+	//grab the fitted parameters we do not need the errors from this because these are serving as initial points for a more
+	//global fit instead of as points feeding into another fit function
+	double* paramFitParams = tempAngleFitFunc->GetParameters();
+	for(int i=0; i<thOrder; ++i)
+	{
+		tempAberParams[i*exOrder+paramNum] = paramFitParams[i];
+	}
+	//clean up the allocated objects
+	delete tempParamFitFunc;
+	delete tempParamFitPts;
 }
 
 void AberrationCorrectionWindow::exportPoints()
@@ -1780,7 +1928,7 @@ void AberrationCorrectionWindow::displaySubSpec(const UpdateCallType& tp)
 		whiteBoard->Clear();
 		whiteBoard->Update();
 	}
-	
+	corrFitMode=false;
 	int runN = runs[dispNum].runNumber;
 	
 	//retrieve the spectrum
@@ -1823,8 +1971,8 @@ void AberrationCorrectionWindow::displaySubSpec(const UpdateCallType& tp)
 	whiteBoard->Update();
 	
 	//update the state information
-	updateStateInfo();
 	updateComboBoxes();
+	updateStateInfo();
 	clearTempFits();
 }
 
@@ -2498,21 +2646,6 @@ bool AberrationCorrectionWindow::checkUpToFrFile()
 	else if( frFile == NULL )
 	{
 		logStrm<<"\nLoad a friend file first";
-		pushToLog();
-		return false;
-	}
-	return true;
-}
-
-bool AberrationCorrectionWindow::checkUpToStates()
-{
-	if( !checkUpToFrFile() )
-	{
-		return false;
-	}
-	else if( !statesSet )
-	{
-		logStrm<<"\nLoad a states file first";
 		pushToLog();
 		return false;
 	}
