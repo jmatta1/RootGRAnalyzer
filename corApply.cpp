@@ -313,7 +313,7 @@ void applyEnergyCorr(RunData* runs, int numRuns)
 		{
 			orig->GetEntry(j);
 			
-			exNew = (exOld + corrDat.eval(exOld, thCorr));
+			exNew = corrDat.eval(exOld, thCorr);
 			
 			if( (j%50000) == 0)
 			{
