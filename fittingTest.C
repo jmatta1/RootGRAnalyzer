@@ -9,7 +9,7 @@ using namespace std;
 #include<TGraph2DErrors.h>
 #include<TF2.h>
 
-#include"testFuncs.h"
+#include"fittingTest.h"
 
 
 enum { MaxNumStates = 25, NumAngleCuts=9};
