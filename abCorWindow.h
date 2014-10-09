@@ -1012,7 +1012,7 @@ void AberrationCorrectionWindow::generateStateInfo()
 		fitBox[i] = new TGComboBox(stateVert[3]);
 		fitBox[i]->AddEntry("Poss. Pks.",0);
 		fitBox[i]->Select(0);
-		fitBox[i]->Resize(100,22);
+		fitBox[i]->Resize(100,exEntry[i]->GetHeight());
 		stateVert[3]->AddFrame(fitBox[i], cellLayout);
 		
 		connection.str("");

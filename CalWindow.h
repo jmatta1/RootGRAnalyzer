@@ -1083,7 +1083,7 @@ void CalWindow::generateStateInfo()
 		fitBox[i] = new TGComboBox(stateVert[6]);
 		fitBox[i]->AddEntry("Poss. Fits",0);
 		fitBox[i]->Select(0);
-		fitBox[i]->Resize(100,22);
+		fitBox[i]->Resize(100,exEntry[i]->GetHeight());
 		stateVert[6]->AddFrame(fitBox[i], cellLayout);
 		
 		ostringstream connection;
