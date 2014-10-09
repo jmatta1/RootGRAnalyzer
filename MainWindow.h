@@ -50,7 +50,7 @@ using std::ios_base;
 #include"guiSupport.h"
 #include"BasicCSDialog.h"
 
-enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs, BasicCSInfoSimple, BasicCSInfoPerRun, ExSpecs};
+enum DisplayFunction{None, PIDCut, BGCut, ShapeDisp, SubbedSpecs, BasicCSInfoSimple, BasicCSInfoPerRun, ExSpecs, ExcorrSpecs};
 enum UpdateCallType{ Initial, Normal, Final};
 
 TCut RayCut;
@@ -88,6 +88,8 @@ public:
 	void applyEnergyCal();
 	void makeEnCalSpecs();
 	void showEnergyCal();
+	void makeEnCorrSpecs();
+	void showEnCorrCal();
 
 	//cs operations
 	void getBasicCSParamsSimple();
@@ -95,6 +97,7 @@ public:
 	void simpleGetCS();
 	void getCSByAngle();
 	void getCSByExCuts();
+	void getCSByExCorrCuts();
 
 	//sequential spectrum display
 	void prevSeqSpec();
@@ -144,6 +147,7 @@ private:
 	string makeExTreeName(int runN);
 	string makeExSubSpecName(int runN);
 	string makeExCorrTreeName(int runN);
+	string makeExCorrSubSpecName(int runN);
 
 	//functions for retrieving various things from files
 	TTree* retrieveTree(int runN);
@@ -164,6 +168,7 @@ private:
 	TTree* retrieveExTree(int runN);
 	TH2F* retrieveExSubSpec(int runN);
 	TTree* retrieveExCorrTree(int runN);
+	TH2F* retrieveExCorrSubSpec(int runN);
 
 	//functions for retrieving various things from files
 	//and then throwing out error messages if the pointer comes back null
@@ -185,6 +190,7 @@ private:
 	TTree* testExTree(int runN);
 	TH2F* testExSubSpec(int runN);
 	TTree* testExCorrTree(int runN);
+	TH2F* testExCorrSubSpec(int runN);
 	
 	//display functions for sequential displays
 	void updateDisplay(const UpdateCallType& tp);
@@ -195,6 +201,7 @@ private:
 	void grabBasicCsInfoPerRun(const UpdateCallType& tp);
 	void grabBasicCsInfoSimple(const UpdateCallType& tp);
 	void updateExDisp(const UpdateCallType& tp);
+	void updateExcorrDisp(const UpdateCallType& tp);
 	
 	//analysis stuff
 	RunData* runs;
@@ -263,12 +270,15 @@ private:
 	TGTextButton *applyEnCalBut;
 	TGTextButton *makeEnCalSpecsBut;
 	TGTextButton *showEnCalBut;
+	TGTextButton *makeEnCorSpecsBut;
+	TGTextButton *showEnCorBut;
 	//cross-section buttons
 	TGTextButton *getCSParamsAllRunsBut;
 	TGTextButton *getCSParamsPerRunBut;
 	TGTextButton *scsBut;
 	TGTextButton *byAngleCSBut;
 	TGTextButton *byExCutCSBut;
+	TGTextButton *byExcorrCutCSBut;
 	
 	//file ops buttons
 	TGTextButton *rdRunData;
@@ -380,6 +390,13 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//show energy cal button
 	showEnCalBut = new TGTextButton(sideBarFrame,"Show Energy Cal");
 	showEnCalBut->Connect("Clicked()","MainWindow",this,"showEnergyCal()");
+	//make energy cal specs button
+	makeEnCorSpecsBut = new TGTextButton(sideBarFrame,"Make En Corr Specs");
+	makeEnCorSpecsBut->Connect("Clicked()","MainWindow",this,"makeEnCorrSpecs()");
+	//show energy cal button
+	showEnCorBut = new TGTextButton(sideBarFrame,"Show Energy Cal");
+	showEnCorBut->Connect("Clicked()","MainWindow",this,"showEnCorrCal()");
+	
 	
 	/******************************************
 	** Get Cross-Sections buttons
@@ -400,8 +417,9 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//get cross-sections using the excitation energy cuts
 	byExCutCSBut = new TGTextButton(sideBarFrame,"CS From Ex Cuts");
 	byExCutCSBut->Connect("Clicked()","MainWindow",this,"getCSByExCuts()");
-	
-	
+	//get cross-sections using the corrected excitation energy cuts
+	byExcorrCutCSBut = new TGTextButton(sideBarFrame,"CS From Excorr Cuts");
+	byExcorrCutCSBut->Connect("Clicked()","MainWindow",this,"getCSByExCorrCuts()");
 	
 	//add the sidebar buttons to the sidebar frame
 	sideBarFrame->AddFrame(cutLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
@@ -418,12 +436,15 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	sideBarFrame->AddFrame(applyEnCalBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(makeEnCalSpecsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(showEnCalBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(makeEnCorSpecsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(showEnCorBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(csLabel, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getCSParamsAllRunsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getCSParamsPerRunBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(scsBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(byAngleCSBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(byExCutCSBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(byExcorrCutCSBut, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	
 	//add the sidebar to the canvas frame
@@ -1675,6 +1696,137 @@ void MainWindow::showEnergyCal()
 	updateDisplay(Initial);
 }
 
+void MainWindow::makeEnCorrSpecs()
+{
+	if( !checkUpToFrFile() )
+	{	return; }
+	
+	logStrm<<"\n";
+	pushToLog();
+	
+	//loop across loaded runs
+	for(int i=0; i<numRuns; ++i)
+	{
+		logStrm<<"Preparing to construct specta for run"<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
+		pushToLog();
+		int runN = runs[i].runNumber;
+		//load the friend tree
+		TTree* frnd = testExCorrTree( runN );
+		if(frnd==NULL)
+		{	return; }
+		
+		//construct histograms, the shape corrected one, the true + bg, the bg, the scaled bg and the sub
+		
+		//first get the bggraph and the pid cut
+		TGraph* bgGraph = testBGGraph(runN);
+		TCutG* pidCut = testPIDCut(runN);
+		
+		if(bgGraph == NULL || pidCut == NULL)
+		{
+			return;
+		}
+		
+		// now do stuff with the bgGraph
+		double* bgPts = bgGraph->GetX();
+		
+		//now get the bg normalization
+		double bgNorm = calculateBGNorm(bgGraph);
+		
+		//make all the histogram names
+		string exSubHistName = makeExCorrSubSpecName( runN );
+		
+		//construct the histogram title
+		ostringstream titler;
+		titler<<"Run "<<runN<<" (True - Scaled BG) Thcorr:Ex";
+		string exSubHistTitle = titler.str();
+		
+		//make the actual histograms to hold things
+		TH2F* trHist = new TH2F("tempTrHist", "tempTrHist", 600, -5, 55, 300, -3, 3);
+		TH2F* scaledBGHist = new TH2F("tempBgHist", "tempBgHist",  600, -5, 55, 300, -3, 3);
+		TH2F* subHist = new TH2F(exSubHistName.c_str(), exSubHistTitle.c_str(),  600, -5, 55, 300, -3, 3);
+		
+		//now set up the branches of our new tree to retrieve everything
+		float theta = 0.0, ex = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
+		frnd->SetBranchAddress("Thcorr",&theta);
+		frnd->SetBranchAddress("Excorr",&ex);
+		frnd->SetBranchAddress("Yfp",&yfp);
+		frnd->SetBranchAddress("Pi1",&pi1);
+		frnd->SetBranchAddress("Pi2",&pi2);
+		frnd->SetBranchAddress("Rayid",&rayid);
+		
+		Long64_t numEnts = (frnd->GetEntries());
+		//now fill the histograms other than the subtracted spectrum
+		for(Long64_t j = 0; j<numEnts; ++j)
+		{
+			//first get the entry
+			frnd->GetEntry(j);
+			//check the rayid cut as it is applied to everything
+			if( rayid == 0)
+			{
+				//now test for the PID cut as everything else has that
+				if( 1 == (pidCut->IsInside(pi2,pi1)) )
+				{
+					//cout<<"Have PID ";
+					//test to see if it is in the background region
+					if( (bgPts[0]<yfp && yfp<bgPts[1]) || (bgPts[2]<yfp && yfp<bgPts[3]) )
+					{
+						//cout<<"In BG"<<endl;
+						//increment the scaled bg spectrum using the scaling factor as the weight
+						scaledBGHist->Fill(ex,theta,bgNorm);
+					}//otherwise test if we are in the true region
+					else if( bgPts[1]<=yfp && yfp<=bgPts[2] )
+					{
+						//cout<<"In true+BG"<<endl;
+						//increment the tr+bg spectrum
+						trHist->Fill(ex,theta);
+					}
+				}
+			}
+		}
+		
+		//now the spectra should be filled so make the subtracted spectrum
+		subHist->Add(trHist, scaledBGHist, 1, -1);
+		//subHist->Sumw2();
+		int nBinsMax=600*300+1;
+		int count = 0;
+		//now zero any bins in the subtracted histogram that are negative
+		for(int k = 1; k<nBinsMax; ++k)
+		{
+			if( (subHist->GetBinContent(k)) < 0 )
+			{
+				++count;
+				subHist->SetBinContent(k, 0.0);
+			}
+		}
+		
+		logStrm<<"Zeroed "<<count<<" bins that were negative after subtraction"<<endl;
+		pushToLog();
+		
+		//now save the spectra
+		auxFile->cd();
+		subHist->Write(exSubHistName.c_str(),TObject::kOverwrite);
+		
+		auxFile->Flush();
+		delete frnd; 
+		delete trHist;
+		delete scaledBGHist;
+		delete subHist;
+		delete bgGraph;
+		delete pidCut;
+	}
+	logStrm<<"Done constructing histograms";
+	pushToLog();
+}
+
+void MainWindow::showEnCorrCal()
+{
+	if(!checkUpToFrFile())
+	{	return; }
+	dispNum = 0;
+	dispFunc = ExcorrSpecs;
+	updateDisplay(Initial);
+}
+
 void MainWindow::getBasicCSParamsSimple()
 {
 	if(!checkUpToFrFile())
@@ -2191,6 +2343,250 @@ void MainWindow::getCSByExCuts()
 		float theta = 0.0, ex = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
 		tree->SetBranchAddress("Thcorr",&theta);
 		tree->SetBranchAddress("Ex",&ex);
+		tree->SetBranchAddress("Yfp",&yfp);
+		tree->SetBranchAddress("Pi1",&pi1);
+		tree->SetBranchAddress("Pi2",&pi2);
+		tree->SetBranchAddress("Rayid",&rayid);
+		
+		Long64_t numEnts = (tree->GetEntries());
+		
+		for(Long64_t treeIndex=0; treeIndex<numEnts; ++treeIndex)
+		{
+			//first get the entry
+			tree->GetEntry(treeIndex);
+			//check the rayid cut as it is applied to everything
+			if( rayid == 0)
+			{
+				//now test for the PID cut as everything else has that
+				if( 1 == (pidCut->IsInside(pi2,pi1)) )
+				{
+					//cout<<"Have PID ";
+					//test to see if it is in the background region
+					if( (bgPts[0]<yfp && yfp<bgPts[1]) || (bgPts[2]<yfp && yfp<bgPts[3]) )
+					{
+						//cout<<"In BG"<<endl;
+						//increment the scaled bg spectrum using the scaling factor as the weight
+						bg->Fill(ex,theta,bgNorm);
+					}//otherwise test if we are in the true region
+					else if( bgPts[1]<=yfp && yfp<=bgPts[2] )
+					{
+						//cout<<"In true+BG"<<endl;
+						//increment the tr+bg spectrum
+						bgTr->Fill(ex,theta);
+					}
+				}
+			}
+		}
+		
+		//now the spectra should be filled so make the subtracted spectrum
+		sub->Add(bgTr, bg, 1, -1);
+		int negCntr = 0;
+		//now loop through the angle/energy bins and get the number of counts in each, then output the data
+		for(int i=1; i<(numSegs+1); ++i)
+		{//loop through angles first
+			//calculate the angle center:
+			float angle=(runs[runInd].angle + ((angleEdges[i]+angleEdges[i-1])/2.0) );
+			output<<runs[runInd].runNumber<<", "<<angle;
+			for(int j=1; j<(runBins.numBins+1); ++j)
+			{
+				float en = ((runBins.edges[j]+runBins.edges[j-1])/2.0);
+				float enWidth = (runBins.edges[j]-runBins.edges[j-1]);
+				//get the integral and its error
+				double counts = sub->GetBinContent(j,i);
+				if( counts <0)
+				{
+					counts = 0;
+					++negCntr;
+				}
+				double cntsErr = TMath::Sqrt(counts);
+				//get the cross-section and its error
+				double cs = calcCrossSection(counts, runs[runInd], delta, phiWidth);
+				double csErr = calcCrossSection(cntsErr, runs[runInd], delta, phiWidth);
+				output<<", "<<en<<", "<<enWidth<<", "<<counts<<", "<<cntsErr<<", "<<cs<<", "<<csErr;
+			}
+			output<<endl;
+		}
+		logStrm<<"Zeroed: "<<negCntr<<" negative bins"<<endl;
+		pushToLog();
+		delete tree;
+		delete[] angleEdges;
+		delete bg;
+		delete bgTr;
+		delete sub;
+	}
+	logStrm<<"Done Extracting cross-sections\n";
+	pushToLog();
+}
+
+void MainWindow::getCSByExCorrCuts()
+{
+	if(!checkUpToFrFile())
+	{	return; }
+	
+	if(numBnds!=numRuns)
+	{
+		logStrm<<"Angle Boundary Information has not been entered for every run";
+		pushToLog();
+		return;
+	}
+	logStrm<<"\nPlease give the file with the Excitation energy bin information\n";
+	pushToLog();
+	//get the file name using a file dialog
+	static TString directory(".");
+	TGFileInfo fileInfo;
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = csvDataType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDOpen, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	string temp = string(fileInfo.fFilename);
+	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
+	{
+		temp.append(".csv");
+	}
+	directory = fileInfo.fIniDir;
+	ifstream input;
+	input.open(fileInfo.fFilename);
+	//count the number of lines
+	string line;
+	int numRunBins=0;
+	while (getline(input, line))
+	{
+		if(line.length()>4)//to handle blank lines at the end of a file
+		{
+			++numRunBins;
+		}
+		else
+		{
+			break;
+		}
+	}
+	//jump back to the beginning
+	input.clear();
+	//check if there was a binning for every run
+	if(numRunBins < numRuns)
+	{
+		logStrm<<"The provided bin file had fewer runs than there are in the currently loaded run data";
+		pushToLog();
+		return;
+	}
+	else if(numRunBins > numRuns)
+	{
+		logStrm<<"The provided bin file had more runs than there are in the currently loaded run data";
+		pushToLog();
+		return;
+	}
+	input.seekg(0,ios_base::beg);
+	
+	logStrm<<"\nGive the file name to save this cross-section data to:\n\n";
+	pushToLog();
+	fileInfo.SetMultipleSelection(false);
+	fileInfo.fFileTypes = csvDataType;
+	fileInfo.fIniDir = StrDup(directory);
+	
+	//make the open file dialog
+	//quite frankly this creeps me the hell out, just creating an object like this
+	//but apparently the parent object will delete it on its own
+	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
+	if(TString(fileInfo.fFilename).IsNull())
+	{
+		return;
+	}
+	//make sure the file name ends with the extension
+	temp = string(fileInfo.fFilename);
+	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
+	{
+		temp.append(".csv");
+	}
+	directory = fileInfo.fIniDir;
+	
+	ofstream output;
+	output.open(temp.c_str());
+	output<<"Run Number, Angle, En Cent1, En Width1, cts1, cts err1, Xs1, Xs err1, En Cent2, En Width2, cts2, cts err2, Xs2, Xs err2, ..."<<endl;
+	//now read line by line to get the run data
+	getline(input, line);
+	int count = 0;
+	while(!input.eof() && count<numRuns)
+	{
+		BinData runBins;
+		parseBinFileLine(line, runBins );
+		getline(input, line);
+		++count;
+		
+		//find the run index in the run data
+		int runInd=-1;
+		for(int i=0; i<numRuns; ++i)
+		{
+			if(runBins.runNum==runs[i].runNumber)
+			{
+				runInd = i;
+				break;
+			}
+		}
+		
+		if( runInd==-1 )
+		{
+			logStrm<<"invalid run number in ex cuts file, line number: "<<count;
+			pushToLog();
+			return;
+		}
+		else if( runBins.numBins < 1 )
+		{
+			logStrm<<"Too few bins in ex cuts file, line number: "<<count;
+			pushToLog();
+			return;
+		}
+		
+		//first get the bggraph and the pid cut
+		TGraph* bgGraph = testBGGraph(runs[runInd].runNumber);
+		TCutG* pidCut = testPIDCut(runs[runInd].runNumber);
+		
+		if(bgGraph == NULL || pidCut == NULL)
+		{
+			return;
+		}
+		
+		// now do stuff with the bgGraph
+		double* bgPts = bgGraph->GetX();
+		
+		//now get the bg normalization
+		double bgNorm = calculateBGNorm(bgGraph);
+		
+		//now create the list of angle bin edges
+		float thetaMin = csBnds[runInd].minTheta;
+		float thetaMax = csBnds[runInd].maxTheta;
+		int numSegs = csBnds[runInd].thetaSegs;
+		float phiWidth = csBnds[runInd].phiWidth;
+		float delta = (thetaMax-thetaMin)/((float)numSegs);
+		float* angleEdges = new float[numSegs+1];
+		angleEdges[0]=thetaMin;
+		angleEdges[numSegs]=thetaMax;
+		for(int i=1; i<numSegs; ++i)
+		{
+			angleEdges[i] = (angleEdges[i-1]+delta);
+		}
+		//now create three 2D histograms with the appropriate angle and energy bins
+		//these will hold the background, the true + background spectra, and the subtracted spectra
+		TH2F* bg = new TH2F("h2TempBG","", runBins.numBins, runBins.edges, numSegs, angleEdges);
+		TH2F* bgTr = new TH2F("h2TempTr+BG","", runBins.numBins, runBins.edges, numSegs, angleEdges);
+		TH2F* sub = new TH2F("h2TempTr","", runBins.numBins, runBins.edges, numSegs, angleEdges);
+		
+		logStrm<<"Loading run "<<runs[runInd].runNumber<<"  "<<(count)<<" / "<<numRuns;
+		pushToLog();
+		
+		//now set up the branches of our tree to retrieve everything
+		TTree* tree = testExcorrTree( runs[runInd].runNumber );
+		float theta = 0.0, ex = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
+		tree->SetBranchAddress("Thcorr",&theta);
+		tree->SetBranchAddress("Excorr",&ex);
 		tree->SetBranchAddress("Yfp",&yfp);
 		tree->SetBranchAddress("Pi1",&pi1);
 		tree->SetBranchAddress("Pi2",&pi2);
@@ -2825,6 +3221,57 @@ void MainWindow::updateExDisp(const UpdateCallType& tp)
 	whiteBoard->Update();
 }
 
+void MainWindow::updateExcorrDisp(const UpdateCallType& tp)
+{
+	static TH2F* excorrSpec;
+	if(tp==Initial)
+	{
+		excorrSpec = NULL;
+		whiteBoard->Clear();
+		whiteBoard->Update();
+	}
+	else if(tp==Normal)
+	{
+		if(exSpec!=NULL)
+		{
+			delete excorrSpec;
+			excorrSpec=NULL;
+		}
+		whiteBoard->Clear();
+		whiteBoard->Update();
+	}
+	else if(tp==Final)
+	{
+		logStrm<<"Done with display, erasing whiteboard";
+		pushToLog();
+		if(excorrSpec!=NULL)
+		{
+			delete excorrSpec;
+			excorrSpec=NULL;
+		}
+		whiteBoard->Clear();
+		whiteBoard->Update();
+		return;
+	}
+	
+	excorrSpec = testExCorrSubSpec(runs[dispNum].runNumber);
+	
+	if(excorrSpec==NULL)
+	{	
+		logStrm<<"Backing out of display mode";
+		pushToLog();
+		dispNum = 0;
+		dispFunc = None;
+		updateExcorrDisp(Final);//to cleanup static vars
+		return;
+	}
+	
+	excorrSpec->Draw("colz");
+	gPad->SetLogy(0);
+	gPad->SetLogz(1);
+	whiteBoard->Update();
+}
+
 void MainWindow::updateDisplay(const UpdateCallType& tp)
 {
 	switch(dispFunc)
@@ -2849,6 +3296,9 @@ void MainWindow::updateDisplay(const UpdateCallType& tp)
 			break;
 		case ExSpecs:
 			updateExDisp(tp);
+			break;
+		case ExcorrSpecs:
+			updateExcorrDisp(tp);
 			break;
 		case None:
 			logStrm<<"In update display with no display function";
@@ -3559,6 +4009,35 @@ TTree* MainWindow::testExCorrTree(int runN)
 	if( temp==NULL )
 	{
 		cout<<"Missing a corrected excitation energy tree, you might have the wrong friend file loaded"<<endl;
+		return NULL;
+	}
+	else
+	{
+		return temp;
+	}
+}
+
+string MainWindow::makeExCorrSubSpecName(int runN)
+{
+	ostringstream bgNamer;
+	bgNamer<<"h2ExcorrSubSpec"<<runN;
+	string temp = bgNamer.str();
+	return temp;
+}
+
+TH2F* MainWindow::retrieveExCorrSubSpec(int runN)
+{
+	string histName = makeExCorrSubSpecName(runN);
+	return reinterpret_cast<TH2F*>(auxFile->Get(histName.c_str()));
+}
+
+TH2F* MainWindow::testExCorrSubSpec(int runN)
+{
+	TH2F* temp = retrieveExCorrSubSpec(runN);
+	if( temp==NULL )
+	{
+		logStrm<<"Missing a Subtracted Theta vs Corrected Ex spectrum, you might have the wrong aux file loaded";
+		pushToLog();
 		return NULL;
 	}
 	else
