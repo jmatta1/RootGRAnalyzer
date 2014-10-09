@@ -63,7 +63,7 @@ double correctionFunction(double *x, double *par)
 {
 	double result=0.0;
 	double ex=x[0];
-	double th=x[1];
+	double th=(x[1]/2.0);
 	double tempEx=1.0;
 	double tempTh=1.0;
 	for(int i=0; i<=thOrder; ++i)
@@ -95,6 +95,7 @@ struct CorrFunc
 		double result = 0.0;
 		double tempEx=1.0;
 		double tempTh=1.0;
+		double th = (angle/2.0);
 		for(int i=0; i<=thOrder; ++i)
 		{
 			tempEx=1.0;
@@ -104,7 +105,7 @@ struct CorrFunc
 				result += (params[intermediate+j]*tempEx*tempTh);
 				tempEx*=oldEx;
 			}
-			tempTh*=angle;
+			tempTh*=th;
 		}
 		return result;
 	}
