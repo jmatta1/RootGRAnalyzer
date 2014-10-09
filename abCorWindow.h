@@ -59,7 +59,6 @@ using std::ios_base;
 #include<TF2.h>
 
 //my includes
-#include"bicubicinterp.h"
 #include"guiSupport.h"
 
 enum UpdateCallType{ Initial, Normal, Final};
