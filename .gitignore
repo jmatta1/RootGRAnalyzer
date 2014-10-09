@@ -8,3 +8,5 @@ oldFuncs.C
 caInputs
 killRootLib.sh
 corInput
+*.d
+*.so
