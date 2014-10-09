@@ -54,6 +54,7 @@ using std::ios_base;
 #include<TList.h>
 #include<TPolyMarker.h>
 #include<TGraph2DErrors.h>
+#include<TGraph2D.h>
 #include<TGraphErrors.h>
 #include<TF2.h>
 
@@ -63,7 +64,7 @@ using std::ios_base;
 
 enum UpdateCallType{ Initial, Normal, Final};
 enum WidgetNumberings{ PolOrderEntry = 0};
-enum { MaxNumStates = 25, NumAngleCuts=9};
+enum { MaxNumStates = 25, NumAngleCuts=11};
 
 TCut RayCut;
 
@@ -133,6 +134,7 @@ private:
 	void prepInitialParams();
 	void initFitSingleAngle(int numFitPts, int angleNum);
 	void initFitSingleParamSet(int paramNum, int numAngles);
+	void calculateResiduals();
 	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
@@ -213,6 +215,7 @@ private:
 	int numPeaks;
 	TGraph2DErrors** corrGraph;
 	TF2** corrFit;
+	TGraph2D** residGraph;
 	double tempAberParams[numParams];
 	double tempAngleArr[NumAngleCuts];
 	double tempAngleErrArr[NumAngleCuts];
@@ -375,8 +378,9 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	}
 	maxAngle=0.05;
 	minAngle=-0.05;
-	angleInd=4;
+	angleInd=5;
 	corrGraph = NULL;
+	residGraph = NULL;
 	corrFit = NULL;
 	quickFitFirstTime = false;
 
@@ -516,7 +520,7 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	dispCorrPt->Connect("Clicked()","AberrationCorrectionWindow",this,"dispCorrPts()");
 	correctionFit = new TGTextButton(sideBarFrame,"Do Correction Fit");
 	correctionFit->Connect("Clicked()","AberrationCorrectionWindow",this,"doFitCorr()");
-	endCorrDisp = new TGTextButton(sideBarFrame,"Return");
+	endCorrDisp = new TGTextButton(sideBarFrame,"Clear Last Fit");
 	endCorrDisp->Connect("Clicked()","AberrationCorrectionWindow",this,"returnToSubSpec()");
 	exportPointsButton = new TGTextButton(sideBarFrame,"Export Corr Pts");
 	exportPointsButton->Connect("Clicked()","AberrationCorrectionWindow",this,"exportPoints()");
@@ -813,6 +817,7 @@ void AberrationCorrectionWindow::readRunData()
 	states = new RefFit*[numRuns];
 	numStates = new int[numRuns];
 	corrGraph = new TGraph2DErrors*[numRuns];
+	residGraph = new TGraph2D*[numRuns];
 	corrFit = new TF2*[numRuns];
 	for(int i=0; i<NumAngleCuts; ++i)
 	{
@@ -823,6 +828,7 @@ void AberrationCorrectionWindow::readRunData()
 		states[i] = NULL;
 		numStates[i] = 0;
 		corrGraph[i] = NULL;
+		residGraph[i] = NULL;
 		corrFit[i] = NULL;
 		for(int j=0; j<NumAngleCuts; ++j)
 		{
@@ -1581,6 +1587,14 @@ int AberrationCorrectionWindow::dispCorrPts()
 		delete corrGraph[dispNum];
 	}
 	corrGraph[dispNum] = new TGraph2DErrors;
+	ostringstream namer;
+	namer<<"run"<<runs[dispNum].runNumber<<"_aber_graph";
+	string name = namer.str();
+	namer.str("");
+	namer.clear();
+	namer<<"Aberration Correction Points For Run "<<runs[dispNum].runNumber;
+	string title = namer.str();
+	corrGraph[dispNum]->SetNameTitle(name.c_str(), title.c_str());
 	//now iterate through all the correction points for this run and add them one by one to the graph
 	int tempInd = dispNum*MaxNumStates;
 	int count=0;
@@ -1616,6 +1630,9 @@ int AberrationCorrectionWindow::dispCorrPts()
 		pushToLog();
 		return angleCount;
 	}
+	//now save the beast
+	auxFile->cd();
+	corrGraph[dispNum]->Write(corrGraph[dispNum]->GetName(),TObject::kOverwrite);
 	//now draw the graph
 	gPad->SetLogy(0);
 	corrGraph[dispNum]->SetMarkerSize(2);
@@ -1637,6 +1654,16 @@ void AberrationCorrectionWindow::drawGraphOfPoints()
 	whiteBoard->Update();
 }
 
+void AberrationCorrectionWindow::drawGraphOfResids()
+{
+	gPad->SetLogy(0);
+	residGraph.SetMarkerSize(2);
+	residGraph.SetMarkerStyle(8);
+	residGraph.SetMargin(0.4);
+	residGraph.Draw("PCOL");
+	whiteBoard->Update();
+}
+
 void AberrationCorrectionWindow::doFitCorr()
 {
 	if(corrFit[dispNum]==NULL)
@@ -1651,9 +1678,19 @@ void AberrationCorrectionWindow::doFitCorr()
 		if(temp>1)
 		{
 			corrGraph[dispNum]->Fit(corrFit[dispNum],"O M");
-			corrFit[dispNum]->SetRange(0.6*corrGraph[dispNum]->GetXmin(),1.4*corrGraph[dispNum]->GetYmin(),1.4*corrGraph[dispNum]->GetXmax(),1.4*corrGraph[dispNum]->GetYmax());
+			corrFit[dispNum]->SetRange(0.6*corrGraph[dispNum]->GetXmin(),1.4*corrGraph[dispNum]->GetYmin(),
+				1.4*corrGraph[dispNum]->GetXmax(),1.4*corrGraph[dispNum]->GetYmax());
+			//get the residuals
+			calculateResiduals();
+			//display everything
+			whiteBoard->Clear()
+			whiteBoard->Divide(2,1);
+			whiteBoard->cd(1)
 			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
+			whiteBoard->cd(2)
+			drawGraphOfResids();
+			whiteBoard->Update();
 		}
 		else
 		{
@@ -1671,13 +1708,23 @@ void AberrationCorrectionWindow::doFitCorr()
 			prepInitialParams();
 			corrFit[dispNum]->SetParameters(tempAberParams);
 			corrGraph[dispNum]->Fit(corrFit[dispNum],"O");
-			corrFit[dispNum]->SetRange(0.6*corrGraph[dispNum]->GetXmin(),1.4*corrGraph[dispNum]->GetYmin(),1.4*corrGraph[dispNum]->GetXmax(),1.4*corrGraph[dispNum]->GetYmax());
+			corrFit[dispNum]->SetRange(0.6*corrGraph[dispNum]->GetXmin(),1.4*corrGraph[dispNum]->GetYmin(),
+				1.4*corrGraph[dispNum]->GetXmax(),1.4*corrGraph[dispNum]->GetYmax());
+			//get the residuals
+			calculateResiduals();
+			//display everything
+			whiteBoard->Clear()
+			whiteBoard->Divide(2,1);
+			whiteBoard->cd(1)
 			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
+			whiteBoard->cd(2)
+			drawGraphOfResids();
+			whiteBoard->Update();
 		}
 		else
 		{
-			logStrm<<"Cannot perform a fit with a single angle. At least 2 angles are needed, 5 angles recommended.";
+			logStrm<<"Cannot perform a fit with a single angle. At least 2 angles are needed, 5 angles recommended minimum.";
 			pushToLog();
 			return;
 		}
@@ -1688,9 +1735,9 @@ void AberrationCorrectionWindow::prepInitialParams()
 {
 	//first iterate through the list of points, load the temp arrays when appropriate
 	int numAngles=0;
+	int tempInd = dispNum*MaxNumStates;
 	for(int i=0; i<NumAngleCuts; ++i)
 	{
-		int tempInd = dispNum*MaxNumStates;
 		if(numPoints[i][dispNum]>1)
 		{
 			tempAngleArr[numAngles] = corrPts[i][tempInd+0].angle;
@@ -1734,8 +1781,9 @@ void AberrationCorrectionWindow::prepInitialParams()
 	{
 		for(int j=0; j<=exOrder; ++j)
 		{
-			logStrm<<"p"<<(i*exSize+j)<<"  a"<<i<<","<<j<<"     ";
-			logStrm<<tempAberParams[i*exSize+j];
+			int tempIndex = (i*exSize+j);
+			logStrm<<"p"<<tempIndex<<"  a"<<i<<","<<j<<"     ";
+			logStrm<<tempAberParams[tempIndex];
 			if(j!=exOrder)
 			{
 				logStrm<<"\n";
@@ -1809,6 +1857,43 @@ void AberrationCorrectionWindow::initFitSingleParamSet(int paramNum, int numAngl
 	//clean up the allocated objects
 	delete tempParamFitFunc;
 	delete tempParamFitPts;
+}
+
+void AberrationCorrectionWindow::calculateResiduals()
+{
+	int tempInd = dispNum*MaxNumStates;
+	int count = 0;
+	if(residGraph[dispNum]!=NULL)
+	{
+		delete residGraph[dispNum];
+	}
+	residGraph[dispNum] = new TGraph2D;
+	ostringstream namer;
+	namer<<"run"<<runs[dispNum].runNumber<<"_residuals";
+	string name = namer.str();
+	namer.str("");
+	namer.clear();
+	namer<<"Aberration Correction Residuals For Run "<<runs[dispNum].runNumber;
+	string title = namer.str();
+	residGraph[dispNum]->SetNameTitle(name.c_str(), title.c_str());
+	for(int i=0; i<NumAngleCuts; ++i)
+	{
+		for(int j=0; j<numPoints[i][dispNum]; ++j)
+		{
+			if(corrPts[i][tempInd+j].stateIndex!=-1)
+			{	
+				double x = corrPts[i][tempInd+j].oldEx;
+				double y = corrPts[i][tempInd+j].angle;
+				double z = corrPts[i][tempInd+j].correctEx;
+				double resid = (z-(corrFit[dispNum]->Eval(x,y)));
+				residGraph[dispNum]->SetPoint(count, x, y, resid);
+				++count;
+			}
+		}
+	}
+	auxFile->cd();
+	residGraph[dispNum]->Write(residGraph[dispNum]->GetName(),TObject::kOverwrite);
+	
 }
 
 void AberrationCorrectionWindow::exportPoints()
@@ -1967,7 +2052,6 @@ void AberrationCorrectionWindow::displaySubSpec(const UpdateCallType& tp)
 		whiteBoard->Clear();
 		whiteBoard->Update();
 	}
-	corrFitMode=false;
 	int runN = runs[dispNum].runNumber;
 	
 	//retrieve the spectrum
@@ -2017,7 +2101,14 @@ void AberrationCorrectionWindow::displaySubSpec(const UpdateCallType& tp)
 
 void AberrationCorrectionWindow::returnToSubSpec()
 {
+	if(!checkUpToFrFile())
+	{return;}
 	corrFitMode=false;
+	if(corrFit[dispNum]!=NULL)
+	{
+		delete corrFit[dispNum];
+		corrFit[dispNum] = NULL;
+	}
 	displaySubSpec(Normal);
 }
 
@@ -2037,6 +2128,7 @@ void AberrationCorrectionWindow::prevSeqSpec()
 		--dispNum;
 		minAngle=-0.05;
 		maxAngle=0.05;
+		angleInd=5;
 		corrFitMode=false;
 		displaySubSpec(Normal);
 		return;
@@ -2058,6 +2150,7 @@ void AberrationCorrectionWindow::nextSeqSpec()
 		++dispNum;
 		minAngle=-0.05;
 		maxAngle=0.05;
+		angleInd=5;
 		corrFitMode=false;
 		displaySubSpec(Normal);
 		return;
@@ -2068,7 +2161,7 @@ void AberrationCorrectionWindow::prevCutSpec()
 {
 	if(!checkUpToFrFile())
 	{return;}
-	if( minAngle<-0.8)
+	if( angleInd==0 )
 	{
 		logStrm<<"No Previous Angle Cut to display";
 		pushToLog();
@@ -2078,7 +2171,6 @@ void AberrationCorrectionWindow::prevCutSpec()
 	{
 		minAngle-=0.2;
 		maxAngle-=0.2;
-		corrFitMode=false;
 		--angleInd;
 		displaySubSpec(Normal);
 		return;
@@ -2089,7 +2181,7 @@ void AberrationCorrectionWindow::nextCutSpec()
 {
 	if(!checkUpToFrFile())
 	{return;}
-	if( maxAngle>0.8)
+	if( angleInd==(NumAngleCuts-1))
 	{
 		logStrm<<"No Next Angle Cut to display";
 		pushToLog();
@@ -2099,7 +2191,6 @@ void AberrationCorrectionWindow::nextCutSpec()
 	{
 		minAngle+=0.2;
 		maxAngle+=0.2;
-		corrFitMode=false;
 		++angleInd;
 		displaySubSpec(Normal);
 		return;
