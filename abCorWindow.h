@@ -131,6 +131,7 @@ private:
 	void loadTempFitComboBoxFromArray();
 	void clearTempFits();
 	void drawGraphOfPoints();
+	void drawGraphOfResids();
 	void prepInitialParams();
 	void initFitSingleAngle(int numFitPts, int angleNum);
 	void initFitSingleParamSet(int paramNum, int numAngles);
@@ -1657,10 +1658,10 @@ void AberrationCorrectionWindow::drawGraphOfPoints()
 void AberrationCorrectionWindow::drawGraphOfResids()
 {
 	gPad->SetLogy(0);
-	residGraph.SetMarkerSize(2);
-	residGraph.SetMarkerStyle(8);
-	residGraph.SetMargin(0.4);
-	residGraph.Draw("PCOL");
+	residGraph[dispNum]->SetMarkerSize(2);
+	residGraph[dispNum]->SetMarkerStyle(8);
+	residGraph[dispNum]->SetMargin(0.4);
+	residGraph[dispNum]->Draw("PCOL");
 	whiteBoard->Update();
 }
 
@@ -1683,12 +1684,12 @@ void AberrationCorrectionWindow::doFitCorr()
 			//get the residuals
 			calculateResiduals();
 			//display everything
-			whiteBoard->Clear()
+			whiteBoard->Clear();
 			whiteBoard->Divide(2,1);
-			whiteBoard->cd(1)
+			whiteBoard->cd(1);
 			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
-			whiteBoard->cd(2)
+			whiteBoard->cd(2);
 			drawGraphOfResids();
 			whiteBoard->Update();
 		}
@@ -1713,12 +1714,12 @@ void AberrationCorrectionWindow::doFitCorr()
 			//get the residuals
 			calculateResiduals();
 			//display everything
-			whiteBoard->Clear()
+			whiteBoard->Clear();
 			whiteBoard->Divide(2,1);
-			whiteBoard->cd(1)
+			whiteBoard->cd(1);
 			corrFit[dispNum]->Draw("surf1");
 			drawGraphOfPoints();
-			whiteBoard->cd(2)
+			whiteBoard->cd(2);
 			drawGraphOfResids();
 			whiteBoard->Update();
 		}
