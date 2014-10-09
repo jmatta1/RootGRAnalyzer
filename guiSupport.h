@@ -59,9 +59,6 @@ const int exSize=5;
 const int thOrder=4;
 const int numParams=25;
 
-const double tempAngleFitInitParams[5]={0.0,1.0,0.0,0.0,0.0};
-double tempParamFitInitParams[5]={0.0,0.0,0.0,0.0,0.0};
-
 double correctionFunction(double *x, double *par)
 {
 	double result=0.0;

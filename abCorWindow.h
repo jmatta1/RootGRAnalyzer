@@ -222,6 +222,8 @@ private:
 	double tempCorrExErrArr[MaxNumStates];
 	double tempAngleFitParams[exOrder+1][NumAngleCuts];
 	double tempAngleFitParamErrs[exOrder+1][NumAngleCuts];
+	double tempParamFitInitParams[thOrder+1];
+	double tempAngleFitInitParams[exOrder+1];
 	TF1* lastFit;
 	bool quickFitFirstTime;
 
@@ -378,6 +380,22 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	corrFit = NULL;
 	quickFitFirstTime = false;
 
+	for(int i=0; i<=thOrder; ++i)
+	{
+		tempParamFitInitParams[i]=0.0;
+	}
+	for(int i=0; i<=exOrder; ++i)
+	{
+		if(i!=1)
+		{
+			tempAngleFitInitParams[i]=1.0;
+		}
+		else
+		{
+			tempAngleFitInitParams[i]=0.0;
+		}
+	}
+	
 	//sys = new TUnixSystem();
 	sys = gSystem;
 	
@@ -748,7 +766,7 @@ void AberrationCorrectionWindow::readRunData()
 {
 	if (runs != NULL)
 	{
-		logStrm<<"\nRun data already loaded, to load new run data, use the reset button";
+		logStrm<<"\nRun data already loaded, to load new run data, restart the GUI";
 		pushToLog();
 		return;
 	}
@@ -830,7 +848,7 @@ void AberrationCorrectionWindow::openBigFile()
 	{	return; }
 	if (mainFile != NULL)
 	{
-		logStrm<<"\nMerge file already loaded, to load a different one, use the reset button";
+		logStrm<<"\nMerge file already loaded, to load a different one, restart the GUI";
 		pushToLog();
 		return;
 	}
@@ -870,7 +888,7 @@ void AberrationCorrectionWindow::openAuxFile()
 	{	return; }
 	if(auxFile != NULL)
 	{
-		logStrm<<"\nAux file already loaded, to load a different one, use the reset button";
+		logStrm<<"\nAux file already loaded, to load a different one, restart the GUI";
 		pushToLog();
 		return;
 	}
@@ -909,7 +927,7 @@ void AberrationCorrectionWindow::openFriendFile()
 	{	return; }
 	if( frFile != NULL )
 	{
-		logStrm<<"\nFriend file already loaded, to load a different one, use the reset button";
+		logStrm<<"\nFriend file already loaded, to load a different one, restart the GUI";
 		pushToLog();
 		return;
 	}
