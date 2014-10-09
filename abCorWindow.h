@@ -88,9 +88,7 @@ public:
 	void unAssignFitToState(int stNum);
 	void rebinDispSpec();
 	int dispCorrPts();
-	void doFitCorr();
 	void exportPoints();
-	void exportFunctions();
 	void addPkRef();
 	void rmPkRef();
 	
@@ -130,12 +128,6 @@ private:
 	void updateComboBoxes();
 	void loadTempFitComboBoxFromArray();
 	void clearTempFits();
-	void drawGraphOfPoints();
-	void drawGraphOfResids();
-	void prepInitialParams();
-	void initFitSingleAngle(int numFitPts, int angleNum);
-	void initFitSingleParamSet(int paramNum, int numAngles);
-	void calculateResiduals();
 	
 	//functions for constructing names of various constructs
 	string makeTreeName(int runN);
@@ -325,10 +317,8 @@ private:
 	TGComboBox* stateListBox;
 	TGTextButton* rmState;
 	TGTextButton* dispCorrPt;
-	TGTextButton* correctionFit;
 	TGTextButton* endCorrDisp;
 	TGTextButton* exportPointsButton;
-	TGTextButton* exportFunctionsButton;
 	
 	//sequential display buttons
 	TGTextButton *prevSpec;
@@ -391,7 +381,7 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	}
 	for(int i=0; i<=exOrder; ++i)
 	{
-		if(i!=1)
+		if(i==1)
 		{
 			tempAngleFitInitParams[i]=1.0;
 		}
@@ -519,20 +509,14 @@ AberrationCorrectionWindow::AberrationCorrectionWindow(const TGWindow* parent, U
 	
 	dispCorrPt = new TGTextButton(sideBarFrame,"Disp. Pts.");
 	dispCorrPt->Connect("Clicked()","AberrationCorrectionWindow",this,"dispCorrPts()");
-	correctionFit = new TGTextButton(sideBarFrame,"Do Correction Fit");
-	correctionFit->Connect("Clicked()","AberrationCorrectionWindow",this,"doFitCorr()");
-	endCorrDisp = new TGTextButton(sideBarFrame,"Clear Last Fit");
+	endCorrDisp = new TGTextButton(sideBarFrame,"Return");
 	endCorrDisp->Connect("Clicked()","AberrationCorrectionWindow",this,"returnToSubSpec()");
 	exportPointsButton = new TGTextButton(sideBarFrame,"Export Corr Pts");
 	exportPointsButton->Connect("Clicked()","AberrationCorrectionWindow",this,"exportPoints()");
-	exportFunctionsButton = new TGTextButton(sideBarFrame,"Export Corr Funcs");
-	exportFunctionsButton->Connect("Clicked()","AberrationCorrectionWindow",this,"exportFunctions()");
 	
 	sideBarFrame->AddFrame(dispCorrPt, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(correctionFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(endCorrDisp, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(exportPointsButton, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
-	sideBarFrame->AddFrame(exportFunctionsButton, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//add the sidebar to the canvas frame
 	canvasFrame->AddFrame(sideBarFrame,  new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandY, 2,2,2,2) );
@@ -923,7 +907,7 @@ void AberrationCorrectionWindow::openAuxFile()
 	directory = fileInfo.fIniDir;
 	
 	//open the aux file
-	auxFile = new TFile(temp.c_str(),"READ");
+	auxFile = new TFile(temp.c_str(),"UPDATE");
 	logStrm<<"\nAux File Opened";
 	pushToLog();
 }
@@ -1644,258 +1628,6 @@ int AberrationCorrectionWindow::dispCorrPts()
 	return angleCount;
 }
 
-void AberrationCorrectionWindow::drawGraphOfPoints()
-{
-	gPad->SetLogy(0);
-	corrGraph[dispNum]->SetMarkerSize(2);
-	corrGraph[dispNum]->SetMarkerColor(1);
-	corrGraph[dispNum]->SetMarkerStyle(8);
-	corrGraph[dispNum]->SetMargin(0.4);
-	corrGraph[dispNum]->Draw("SAME PO ERR");
-	whiteBoard->Update();
-}
-
-void AberrationCorrectionWindow::drawGraphOfResids()
-{
-	gPad->SetLogy(0);
-	residGraph[dispNum]->SetMarkerSize(2);
-	residGraph[dispNum]->SetMarkerStyle(8);
-	residGraph[dispNum]->SetMargin(0.4);
-	residGraph[dispNum]->Draw("PCOL");
-	whiteBoard->Update();
-}
-
-void AberrationCorrectionWindow::doFitCorr()
-{
-	if(corrFit[dispNum]==NULL)
-	{
-		ostringstream namer;
-		namer<<"Correction Function "<<dispNum;
-		corrFit[dispNum] = new TF2(namer.str().c_str(), &correctionFunction, 0.0, 55.0, -1.0, 1.0, numParams);
-	}
-	if(corrFitMode)
-	{
-		int temp = dispCorrPts();
-		if(temp>1)
-		{
-			corrGraph[dispNum]->Fit(corrFit[dispNum],"O M");
-			corrFit[dispNum]->SetRange(0.6*corrGraph[dispNum]->GetXmin(),1.4*corrGraph[dispNum]->GetYmin(),
-				1.4*corrGraph[dispNum]->GetXmax(),1.4*corrGraph[dispNum]->GetYmax());
-			//get the residuals
-			calculateResiduals();
-			//display everything
-			whiteBoard->Clear();
-			whiteBoard->Divide(2,1);
-			whiteBoard->cd(1);
-			corrFit[dispNum]->Draw("surf1");
-			drawGraphOfPoints();
-			whiteBoard->cd(2);
-			drawGraphOfResids();
-			whiteBoard->Update();
-		}
-		else
-		{
-			logStrm<<"Cannot perform a fit with a single angle. At least 2 angles are needed, 5 angles recommended.";
-			pushToLog();
-			return;
-		}
-	}
-	else
-	{
-		corrFitMode=true;
-		int temp = dispCorrPts();
-		if(temp>1)
-		{
-			prepInitialParams();
-			corrFit[dispNum]->SetParameters(tempAberParams);
-			corrGraph[dispNum]->Fit(corrFit[dispNum],"O");
-			corrFit[dispNum]->SetRange(0.6*corrGraph[dispNum]->GetXmin(),1.4*corrGraph[dispNum]->GetYmin(),
-				1.4*corrGraph[dispNum]->GetXmax(),1.4*corrGraph[dispNum]->GetYmax());
-			//get the residuals
-			calculateResiduals();
-			//display everything
-			whiteBoard->Clear();
-			whiteBoard->Divide(2,1);
-			whiteBoard->cd(1);
-			corrFit[dispNum]->Draw("surf1");
-			drawGraphOfPoints();
-			whiteBoard->cd(2);
-			drawGraphOfResids();
-			whiteBoard->Update();
-		}
-		else
-		{
-			logStrm<<"Cannot perform a fit with a single angle. At least 2 angles are needed, 5 angles recommended minimum.";
-			pushToLog();
-			return;
-		}
-	}
-}
-
-void AberrationCorrectionWindow::prepInitialParams()
-{
-	//first iterate through the list of points, load the temp arrays when appropriate
-	int numAngles=0;
-	int tempInd = dispNum*MaxNumStates;
-	for(int i=0; i<NumAngleCuts; ++i)
-	{
-		if(numPoints[i][dispNum]>1)
-		{
-			tempAngleArr[numAngles] = corrPts[i][tempInd+0].angle;
-			tempAngleErrArr[numAngles] = corrPts[i][tempInd+0].angleW;
-			++numAngles;
-		}
-		else
-		{
-			logStrm<<"Not enough points in angle cut "<<i<<" to do an initial parameter fit estimate\n";
-			logStrm<<"Moving to next angle";
-			pushToLog();
-			continue;
-		}
-		int count = 0;
-		for(int j=0; j<numPoints[i][dispNum]; ++j)
-		{
-			if(corrPts[i][tempInd+j].stateIndex!=-1)
-			{	
-				tempOldExArr[count] = corrPts[i][tempInd+j].oldEx;
-				tempOldExErrArr[count] = corrPts[i][tempInd+j].oldWidth;
-				tempCorrExArr[count] = corrPts[i][tempInd+j].correctEx;
-				tempCorrExErrArr[count] = corrPts[i][tempInd+j].correctWidth;
-				++count;
-			}
-		}
-		//now fit the temporary data points
-		initFitSingleAngle(count, numAngles-1);
-	}
-	logStrm<<"Done with angle fits, proceding to param range fits";
-	pushToLog();
-	//now that we have the initial sets of parameters extracted, now we get the
-	//theta dependence out of the parameters with additional fits
-	for(int i=0; i<=exOrder; ++i)
-	{
-		initFitSingleParamSet(i,numAngles);
-	}
-	//tell the user what the initia fit values were
-	logStrm<<"Done setting initial values, they are as follows"<<endl;
-	pushToLog();
-	for(int i=0; i<=thOrder; ++i)
-	{
-		for(int j=0; j<=exOrder; ++j)
-		{
-			int tempIndex = (i*exSize+j);
-			logStrm<<"p"<<tempIndex<<"  a"<<i<<","<<j<<"     ";
-			logStrm<<tempAberParams[tempIndex];
-			if(j!=exOrder)
-			{
-				logStrm<<"\n";
-			}
-		}
-		pushToLog();
-	}	
-}
-
-void AberrationCorrectionWindow::initFitSingleAngle(int numFitPts, int angleNum)
-{
-	//first create the TGraphErrors
-	TGraphErrors* tempAngleFitPts = new TGraphErrors(numFitPts,tempOldExArr,tempCorrExArr,tempOldExErrArr, tempCorrExErrArr);
-	tempAngleFitPts->Draw();
-	//write the polynomial in old ex energy that we are using
-	ostringstream formNamer;
-	formNamer<<"pol"<<exOrder<<"(0)";
-	string tempFormula = formNamer.str();
-	//create the fitting function
-	TF1* tempAngleFitFunc = new TF1("tempAngleFitFormula",tempFormula.c_str(),0.6*tempOldExArr[0],1.4*tempOldExArr[numFitPts-1]);
-	tempAngleFitFunc->SetParameters(tempAngleFitInitParams);
-	//do the fit using with no plotting, quiet mode, and using the range that was specified in the function
-	tempAngleFitPts->Fit(tempAngleFitFunc,"Q O R","");
-	cout<<"\n\nFit report for angle: "<<angleNum<<" with "<<numFitPts<<" points"<<endl;
-	tempAngleFitFunc->Print();
-	//grab the fitted parameters
-	double* angleFitParams = tempAngleFitFunc->GetParameters();
-	double* angleFitParamErrs = tempAngleFitFunc->GetParErrors();
-	//transfer the parameters into the temporary array for them
-	for(int i=0; i<=exOrder; ++i)
-	{
-		tempAngleFitParams[i][angleNum] = angleFitParams[i];
-		tempAngleFitParamErrs[i][angleNum] = angleFitParamErrs[i];
-	}
-	//clean up after ourselves
-	delete tempAngleFitFunc;
-	delete tempAngleFitPts;
-}
-
-void AberrationCorrectionWindow::initFitSingleParamSet(int paramNum, int numAngles)
-{
-	//create the TGraphErrors for this run
-	TGraphErrors* tempParamFitPts = new TGraphErrors(numAngles, tempAngleArr, tempAngleFitParams[paramNum], tempAngleErrArr, tempAngleFitParamErrs[paramNum]);
-	//write the polynomial in angle that we are using
-	ostringstream formNamer;
-	formNamer<<"pol"<<thOrder<<"(0)";
-	string tempFormula = formNamer.str();
-	//create the fitting function
-	TF1* tempParamFitFunc = new TF1("tempParamFitFormula",tempFormula.c_str(),1.4*tempAngleArr[0],1.4*tempAngleArr[numAngles-1]);
-	//set a few initial guestimates for the constant and linear terms
-	double x1 = tempAngleArr[0];
-	double y1 = tempAngleFitParams[paramNum][0];
-	double x2 = tempAngleArr[numAngles-1];
-	double y2 = tempAngleFitParams[paramNum][numAngles-1];
-	double slope = ((y2-y1)/(x2-x1));
-	double offset = (y2-(slope*x2));
-	tempParamFitInitParams[0]=offset;
-	tempParamFitInitParams[1]=slope;
-	tempParamFitFunc->SetParameters(tempParamFitInitParams);
-	cout<<"\n\nFit report for paramset: "<<paramNum<<" with "<<numAngles<<" points"<<endl;
-	//do the fit using with no plotting, quiet mode, and using the range that was specified in the function
-	tempParamFitPts->Fit(tempParamFitFunc,"Q O R","");
-	tempParamFitFunc->Print();
-	//grab the fitted parameters we do not need the errors from this because these are serving as initial points for a more
-	//global fit instead of as points feeding into another fit function
-	double* paramFitParams = tempParamFitFunc->GetParameters();
-	for(int i=0; i<=thOrder; ++i)
-	{
-		tempAberParams[i*exSize+paramNum] = paramFitParams[i];
-	}
-	//clean up the allocated objects
-	delete tempParamFitFunc;
-	delete tempParamFitPts;
-}
-
-void AberrationCorrectionWindow::calculateResiduals()
-{
-	int tempInd = dispNum*MaxNumStates;
-	int count = 0;
-	if(residGraph[dispNum]!=NULL)
-	{
-		delete residGraph[dispNum];
-	}
-	residGraph[dispNum] = new TGraph2D;
-	ostringstream namer;
-	namer<<"run"<<runs[dispNum].runNumber<<"_residuals";
-	string name = namer.str();
-	namer.str("");
-	namer.clear();
-	namer<<"Aberration Correction Residuals For Run "<<runs[dispNum].runNumber;
-	string title = namer.str();
-	residGraph[dispNum]->SetNameTitle(name.c_str(), title.c_str());
-	for(int i=0; i<NumAngleCuts; ++i)
-	{
-		for(int j=0; j<numPoints[i][dispNum]; ++j)
-		{
-			if(corrPts[i][tempInd+j].stateIndex!=-1)
-			{	
-				double x = corrPts[i][tempInd+j].oldEx;
-				double y = corrPts[i][tempInd+j].angle;
-				double z = corrPts[i][tempInd+j].correctEx;
-				double resid = (z-(corrFit[dispNum]->Eval(x,y)));
-				residGraph[dispNum]->SetPoint(count, x, y, resid);
-				++count;
-			}
-		}
-	}
-	auxFile->cd();
-	residGraph[dispNum]->Write(residGraph[dispNum]->GetName(),TObject::kOverwrite);
-	
-}
 
 void AberrationCorrectionWindow::exportPoints()
 {
@@ -1945,52 +1677,6 @@ void AberrationCorrectionWindow::exportPoints()
 					output<<runs[i].runNumber<<","<<oldEx<<","<<oldWidth<<","<<angle<<","<<angleW<<","<<correctEx<<","<<correctWidth<<endl;
 				}
 			}
-		}
-	}
-	output.close();
-}
-
-void AberrationCorrectionWindow::exportFunctions()
-{
-	logStrm<<"\nGive the file name to save correction functions to";
-	pushToLog();
-	static TString directory(".");
-	TGFileInfo fileInfo;
-	fileInfo.SetMultipleSelection(false);
-	fileInfo.fFileTypes = csvDataType;
-	fileInfo.fIniDir = StrDup(directory);
-	
-	//make the open file dialog
-	//quite frankly this creeps me the hell out, just creating an object like this
-	//but apparently the parent object will delete it on its own
-	new TGFileDialog(gClient->GetRoot(), mainWindow, kFDSave, &fileInfo);
-	if(TString(fileInfo.fFilename).IsNull())
-	{
-		return;
-	}
-	//make sure the file name ends with the extension
-	string temp = string(fileInfo.fFilename);
-	if( (temp.size()-4) != ( temp.rfind(".csv") ) )
-	{
-		temp.append(".csv");
-	}
-	directory = fileInfo.fIniDir;
-	
-	//now open the file
-	ofstream output;
-	output.open(temp.c_str());
-	output<<"run #, a00, a01, a02, a03, a04, a10, a11, .., a43, a44, where each term is: aij*(theta^i)*(ex^j)"<<endl;
-	for(int i=0; i<numRuns; ++i)
-	{
-		if(corrFit[i]!=NULL)
-		{
-			double* paramArray = corrFit[i]->GetParameters();
-			output<<runs[i].runNumber<<","<<paramArray[0];
-			for(int j=1; j<numParams; ++j)
-			{
-				output<<","<<paramArray[j];
-			}
-			output<<endl;
 		}
 	}
 	output.close();
