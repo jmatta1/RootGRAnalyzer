@@ -1136,11 +1136,7 @@ void AberrationCorrectionWindow::assignFitToState(int stNum)
 	//otherwise the state is unassigned, assign it
 	corrPts[angleInd][tempInd+id].stateIndex = stNum;
 	corrPts[angleInd][tempInd+id].correctEx = states[dispNum][stNum].centroid;
-	double peakErrorSqr = (corrPts[angleInd][tempInd+id].oldWidth*corrPts[angleInd][tempInd+id].oldWidth);
-	double stateErrorSqr = (states[dispNum][stNum].width*states[dispNum][stNum].width);
-	double errorSquareSum = (peakErrorSqr + stateErrorSqr);
-	double corrError = TMath::Sqrt(errorSquareSum);
-	corrPts[angleInd][tempInd+id].correctWidth = corrError;
+	corrPts[angleInd][tempInd+id].correctWidth = states[dispNum][stNum].width;
 	pkAssigns[angleInd][tempInd+stNum].isSet = true;
 	pkAssigns[angleInd][tempInd+stNum].ftInd = id;
 	++(states[dispNum][stNum].refCount);
@@ -1218,14 +1214,13 @@ void AberrationCorrectionWindow::getFitData()
 	}
 	//read the fit data
 	double* values = fit->GetParameters();
-	double* errors = fit->GetParErrors();
 	//clear the temp fit combobox
 	tempFitBox->RemoveEntries(1,MaxNumStates+10);
 	numTempPeaks = numPeaks;
 	for(int i=0; i<numPeaks; ++i)
 	{
 		tempPeaks[i].centroid = values[3*i+1];
-		tempPeaks[i].width = errors[3*i+1];
+		tempPeaks[i].width = values[3*i+2];
 	}
 	loadTempFitComboBoxFromArray();
 }
@@ -1353,14 +1348,13 @@ void AberrationCorrectionWindow::doQuickFit()
 	//as if the get fit data button was clicked when using the fit panel
 	//read the fit data
 	double* values = tempQuickFit->GetParameters();
-	double* errors = tempQuickFit->GetParErrors();
 	//clear the temp fit combobox
 	tempFitBox->RemoveEntries(1,MaxNumStates+10);
 	numTempPeaks = numPeaks;
 	for(int i=0; i<numPeaks; ++i)
 	{
 		tempPeaks[i].centroid = values[3*i+1];
-		tempPeaks[i].width = errors[3*i+1];
+		tempPeaks[i].width = values[3*i+2];
 	}
 	loadTempFitComboBoxFromArray();
 	//cleanup
