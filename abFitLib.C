@@ -57,6 +57,7 @@ TGraph2D* residGraph=NULL;
 TCanvas* canvas=NULL;
 
 int numAngles=0;
+int currRunNumber=0;
 
 const double tempAngleFitInitParams[5]={0.0,1.0,0.0,0.0,0.0};
 double tempParamFitInitParams[5]={0.0,0.0,0.0,0.0,0.0};
@@ -274,6 +275,7 @@ void loadGraph()
 
 void loadRun(int runNumber, string filename)
 {
+	currRunNumber = runNumber;
 	if(canvas==NULL)
 	{
 		canvas = new TCanvas("Canvas");
@@ -434,7 +436,7 @@ void exportFunction(const string &fileName)
 	output.open(fileName.c_str());
 	output<<"run #, a00, a01, a02, a03, a04, a10, a11, .., a43, a44, where each term is: aij*(theta^i)*(ex^j)"<<endl;
 	double* paramArray = corrFit->GetParameters();
-	output<<"1153,"<<paramArray[0];
+	output<<currRunNumber<<","<<paramArray[0];
 	for(int j=1; j<numParams; ++j)
 	{
 		output<<","<<paramArray[j];
