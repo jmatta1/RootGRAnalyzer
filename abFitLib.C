@@ -52,6 +52,7 @@ double tempAngleFitParamErrs[exOrder+1][NumAngleCuts];
 TGraph2DErrors* corrGraph=NULL;
 TF2* corrFit=NULL;
 TGraph2D* residGraph=NULL;
+//TGraphErrors tempPlot;
 
 TCanvas* canvas=NULL;
 
@@ -113,8 +114,8 @@ void prepInitialParams()
 	cout<<"NumAngles: "<<numAngles<<endl;
 	for(int i=0; i<numAngles; ++i)
 	{
-		tempAngleArr[angleCount] = yVal[i][0];
-		tempAngleErrArr[angleCount] = eyVal[i][0];
+		tempAngleArr[angleCount] = (yVal[i][0]/2.0);
+		tempAngleErrArr[angleCount] = (eyVal[i][0]/2.0);
 		++angleCount;
 		int count = 0;
 		for(int j=0; j<lengths[i]; ++j)
@@ -358,9 +359,9 @@ void loadRun(int runNumber, string filename)
 	}
 	lengths[angleIndex]=(ptCount+1);
 	loadGraph();
-/*
+
 	//output of points for debugging/testing
-	for(int i=0; i<numAngles; ++i)
+/*	for(int i=0; i<numAngles; ++i)
 	{
 		for(int j=0; j<lengths[i]; ++j)
 		{
@@ -424,6 +425,23 @@ void parsePtLine(const string& line, int &tempRunNum, double &tempOldEx, double 
 	conv.str(temp);
 	conv>>tempCorrErr;
 	conv.clear();
+}
+
+void getChi()
+{
+	double chi=0.0;
+	double* resids = residGraph->GetZ();
+	double temp=0.0;
+	int n = residGraph->GetN();
+	for(int i=0; i<n; ++i)
+	{
+		temp = (resids[i]*resids[i]/(0.16));
+		chi+=temp;
+	}
+	cout<<"The total chi^2 is: "<<chi<<endl;
+	cout<<"The number of degrees of freedom is: "<<(n-26)<<endl;
+	cout<<"The reduced chi^2 is: "<<(chi/((float)(n-26)))<<endl;
+
 }
 
 void exportFunction(const string &fileName)
