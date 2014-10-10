@@ -427,23 +427,6 @@ void parsePtLine(const string& line, int &tempRunNum, double &tempOldEx, double 
 	conv.clear();
 }
 
-void getChi()
-{
-	double chi=0.0;
-	double* resids = residGraph->GetZ();
-	double temp=0.0;
-	int n = residGraph->GetN();
-	for(int i=0; i<n; ++i)
-	{
-		temp = (resids[i]*resids[i]/(0.16));
-		chi+=temp;
-	}
-	cout<<"The total chi^2 is: "<<chi<<endl;
-	cout<<"The number of degrees of freedom is: "<<(n-26)<<endl;
-	cout<<"The reduced chi^2 is: "<<(chi/((float)(n-26)))<<endl;
-
-}
-
 void exportFunction(const string &fileName)
 {
 	//now open the file
