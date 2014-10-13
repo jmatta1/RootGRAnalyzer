@@ -3038,6 +3038,7 @@ void MainWindow::updateSubDisp(const UpdateCallType& tp)
 		}
 		whiteBoard->Clear();
 		whiteBoard->Update();
+		return;
 	}
 	
 	int runN = runs[dispNum].runNumber;
