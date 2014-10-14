@@ -3233,7 +3233,7 @@ void MainWindow::updateExcorrDisp(const UpdateCallType& tp)
 	}
 	else if(tp==Normal)
 	{
-		if(exSpec!=NULL)
+		if(excorrSpec!=NULL)
 		{
 			delete excorrSpec;
 			excorrSpec=NULL;
