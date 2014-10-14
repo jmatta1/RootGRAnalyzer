@@ -2102,7 +2102,7 @@ void MainWindow::getCSByAngle()
 			{
 				//find the first cell with >= 1 count
 				int numBins = ( xProj->GetNbinsX() + 1 );
-				int startBin;
+				int startBin=0;
 				for( int n = 1; n < numBins; ++n)
 				{
 					if( (xProj->GetBinContent(n))>=1 )
@@ -2116,7 +2116,7 @@ void MainWindow::getCSByAngle()
 				else
 				{	startBin=1; }
 				//find the last cell with >= 1 count
-				int lastBin;
+				int lastBin=numBins;
 				for( int n = (numBins-1); n > 0; --n)
 				{
 					if( (xProj->GetBinContent(n))>=1 )
@@ -2583,7 +2583,7 @@ void MainWindow::getCSByExCorrCuts()
 		pushToLog();
 		
 		//now set up the branches of our tree to retrieve everything
-		TTree* tree = testExcorrTree( runs[runInd].runNumber );
+		TTree* tree = testExCorrTree( runs[runInd].runNumber );
 		float theta = 0.0, ex = 0.0, yfp = 0.0, pi1 = 0.0, pi2 = 0.0, rayid = 0.0;
 		tree->SetBranchAddress("Thcorr",&theta);
 		tree->SetBranchAddress("Excorr",&ex);
