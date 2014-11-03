@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 	for(float i=minEn; i<=maxEn; i+=de)
 	{
 		enArrForOutput[count] = i;
-		enOutput<<enArrForOutput[count]<<endl;
+		enOutput<<(int)(enArrForOutput[count]*1000.0)<<endl;
 		++count;
 	}
 	
