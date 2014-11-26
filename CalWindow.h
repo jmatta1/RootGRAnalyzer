@@ -85,7 +85,9 @@ public:
 	void removeFit();
 	void assignFitToState(int stNum);
 	void unAssignFitToState(int stNum);
-	void getCalibration();
+	bool getCalibration();
+	void showCalibration();
+	void hideCalibration();
 	void exportCalibrations();
 	
 	//sequential spectrum display
@@ -193,6 +195,7 @@ private:
 	int* numFits;
 	StateFit** assigns;
 	int* numAssigned;
+	TGraphErrors* calGraph;
 	TF1** calFits;
 	int* calOrd;
 	int numRuns;
@@ -286,6 +289,8 @@ private:
 	TGTextButton* getFit;
 	TGTextButton* quickFit;
 	TGTextButton* doCal;
+	TGTextButton* showCal;
+	TGTextButton* hideCal;
 	TGComboBox* tempFitBox;
 	TGTextButton* useFit;
 	TGTextButton* useAllFits;
@@ -296,7 +301,7 @@ private:
 	TGTextButton *prevSpec;
 	TGTextButton *nextSpec;
 	TGTextButton *toggleScale;
-	
+
 	//file ops buttons
 	TGTextButton *rdRunData;
 	TGTextButton *opBigFile;
@@ -332,6 +337,7 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	statesSet=false;
 	numAssigned=NULL;
 	quickFitFirstTime = false;
+	TGraphErrors* calGraph;
 
 	tempFits = new FitData[5];
 
@@ -426,6 +432,10 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	calOrderFrame->AddFrame(calOrderLabel, new TGLayoutHints(kLHintsNormal, 5, 5, 3, 4) );
 	doCal = new TGTextButton(sideBarFrame,"Do Calib.");
 	doCal->Connect("Clicked()","CalWindow",this,"getCalibration()");
+	showCal = new TGTextButton(sideBarFrame,"Show Calib.");
+	showCal->Connect("Clicked()","CalWindow",this,"showCalibration()");
+	hideCal = new TGTextButton(sideBarFrame,"Hide Calib.");
+	hideCal->Connect("Clicked()","CalWindow",this,"hideCalibration()");
 	exportCal = new TGTextButton(sideBarFrame,"Export Cals.");
 	exportCal->Connect("Clicked()","CalWindow",this,"exportCalibrations()");
 	
@@ -436,6 +446,8 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	sideBarFrame->AddFrame(rmFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(calOrderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(doCal, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(showCal, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(hideCal, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(exportCal, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	//add the sidebar to the canvas frame
@@ -1347,7 +1359,7 @@ void CalWindow::unAssignFitToState(int stNum)
 	updateComboBoxes();
 }
 
-void CalWindow::getCalibration()
+bool CalWindow::getCalibration()
 {
 	//get the order of polynomial to be used
 	int calPolOrd = calOrderGetter->GetIntNumber();
@@ -1355,7 +1367,7 @@ void CalWindow::getCalibration()
 	{
 		logStrm<<"Not enough peaks assigned for calibration of this order"<<endl;
 		pushToLog();
-		return;
+		return false;
 	}
 	//if we can go ahead, first we construct a TGraph
 	double* xVals = new double[numAssigned[dispNum]];
@@ -1369,13 +1381,13 @@ void CalWindow::getCalibration()
 		{
 			yVals[ind] = states[dispNum][i].fpMom;
 			xVals[ind] = fitList[dispNum][assigns[dispNum][i].ftInd].centroid;
-			xErrs[ind] = 0.1;
-			yErrs[ind] = fitList[dispNum][assigns[dispNum][i].ftInd].width;
+			xErrs[ind] = fitList[dispNum][assigns[dispNum][i].ftInd].width;
+			yErrs[ind] = (0.005*states[dispNum][i].fpMom);
 			++ind;
 		}
 	}
 	//TGraph* temp = new TGraph( numAssigned[dispNum], xVals, yVals);
-	TGraphErrors* temp = new TGraphErrors(numAssigned[dispNum], xVals, yVals, xErrs, yErrs);
+	calGraph = new TGraphErrors(numAssigned[dispNum], xVals, yVals, xErrs, yErrs);
 	//now check if there is a fit function present if so, delete it
 	if(calFits[dispNum]!=NULL)
 	{
@@ -1389,13 +1401,40 @@ void CalWindow::getCalibration()
 	calOrd[dispNum] = calPolOrd;
 	calFits[dispNum] = new TF1(namer.str().c_str(),calFuncs[calPolOrd-1],-700,700);
 	
-	temp->Fit(calFits[dispNum], "QFN");
+	calGraph->Fit(calFits[dispNum], "QFN");
 	calFits[dispNum]->Print();
 	updateStateInfo();
 		
-	delete temp;
 	delete[] xVals;
 	delete[] yVals;
+	delete[] xErrs;
+	delete[] yErrs;
+	return true;
+}
+
+void CalWindow::showCalibration()
+{
+	bool proceed = getCalibration();
+	if (!proceed)
+	{
+		return;
+	}
+	whiteBoard->Clear();
+	gPad->SetLogy(0);
+	ostringstream namer;
+	namer<<"Calibration Points, Run "<<runs[dispNum].runNumber;
+	calGraph->SetNameTitle("calGraph",namer.str().c_str());
+	calGraph->Draw();
+	calFits[dispNum]->Draw("same");
+	whiteBoard->Update();
+}
+
+void CalWindow::hideCalibration()
+{
+	if(!checkUpToStates())
+	{return;}
+	gPad->SetLogy(1);
+	displaySubSpec(Normal);
 }
 
 void CalWindow::exportCalibrations()
