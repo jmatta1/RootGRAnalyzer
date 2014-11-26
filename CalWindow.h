@@ -1440,7 +1440,7 @@ void CalWindow::hideCalibration()
 void CalWindow::exportCalibrations()
 {
 	//first check that all runs have calibrations
-	for(int i=0; i < numRuns; ++i)
+	/*for(int i=0; i < numRuns; ++i)
 	{
 		if(calFits[i]==NULL)
 		{
@@ -1448,7 +1448,7 @@ void CalWindow::exportCalibrations()
 			pushToLog();
 			return;
 		}
-	}
+	}*/
 	logStrm<<"\nGive the file name to save this calibration data to";
 	pushToLog();
 	static TString directory(".");
@@ -1480,17 +1480,20 @@ void CalWindow::exportCalibrations()
 	//for( int i=0; i < numRuns; ++i)
 	for( int i=0; i < numRuns; ++i)
 	{
-		double* params = calFits[i]->GetParameters();
-		output<<runs[i].runNumber<<","<<params[0]<<","<<params[1];
-		if(calOrd[i]==2)
+		if(calFits[i]!=NULL)
 		{
-			output<<","<<params[2];
+			double* params = calFits[i]->GetParameters();
+			output<<runs[i].runNumber<<","<<params[0]<<","<<params[1];
+			if(calOrd[i]==2)
+			{
+				output<<","<<params[2];
+			}
+			else
+			{
+				output<<",0.0";
+			}
+			output<<endl;
 		}
-		else
-		{
-			output<<",0.0";
-		}
-		output<<endl;
 	}
 	output.close();
 }
