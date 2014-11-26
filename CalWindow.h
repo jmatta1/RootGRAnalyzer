@@ -52,6 +52,7 @@ using std::ios_base;
 #include<TROOT.h>
 #include<TPluginManager.h>
 #include<TList.h>
+#include<TGraphErrors.h>
 
 //my includes
 #include"bicubicinterp.h"
@@ -1357,8 +1358,10 @@ void CalWindow::getCalibration()
 		return;
 	}
 	//if we can go ahead, first we construct a TGraph
-	float* xVals = new float[numAssigned[dispNum]];
-	float* yVals = new float[numAssigned[dispNum]];
+	double* xVals = new double[numAssigned[dispNum]];
+	double* yVals = new double[numAssigned[dispNum]];
+	double* xErrs = new double[numAssigned[dispNum]];
+	double* yErrs = new double[numAssigned[dispNum]];
 	int ind =0;
 	for(int i=0; i<numStates; ++i)
 	{
@@ -1366,11 +1369,13 @@ void CalWindow::getCalibration()
 		{
 			yVals[ind] = states[dispNum][i].fpMom;
 			xVals[ind] = fitList[dispNum][assigns[dispNum][i].ftInd].centroid;
+			xErrs[ind] = 0.1;
+			yErrs[ind] = fitList[dispNum][assigns[dispNum][i].ftInd].width;
 			++ind;
 		}
 	}
-	TGraph* temp = new TGraph( numAssigned[dispNum], xVals, yVals);
-	
+	//TGraph* temp = new TGraph( numAssigned[dispNum], xVals, yVals);
+	TGraphErrors* temp = new TGraphErrors(numAssigned[dispNum], xVals, yVals, xErrs, yErrs);
 	//now check if there is a fit function present if so, delete it
 	if(calFits[dispNum]!=NULL)
 	{
