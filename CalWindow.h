@@ -76,9 +76,11 @@ public:
 	//fit control
 	void setFitFunc();
 	void getFitData();
+	void doQuickFit();
 	
 	//calibration control
 	void transferFit();
+	void transferAllFits();
 	void removeFit();
 	void assignFitToState(int stNum);
 	void unAssignFitToState(int stNum);
@@ -182,6 +184,9 @@ private:
 	RunData* runs;
 	FitData* tempFits;
 	StateData** states;
+	double quickFitPos[7];
+	double tempHistVals[7];
+	double tempParams[18];
 	bool statesSet;
 	FitData** fitList;
 	int* numFits;
@@ -197,6 +202,7 @@ private:
 	BiCubicInterpolation* interp;
 	int currBGOrder;
 	int numPeaks;
+	bool quickFitFirstTime;
 
 	//display stuff
 	int dispNum;
@@ -277,9 +283,11 @@ private:
 	TGNumberEntry* calOrderGetter;//used for getting the order of the cal function
 	TGTextButton* setFunc;
 	TGTextButton* getFit;
+	TGTextButton* quickFit;
 	TGTextButton* doCal;
 	TGComboBox* tempFitBox;
 	TGTextButton* useFit;
+	TGTextButton* useAllFits;
 	TGComboBox* fitListBox;
 	TGTextButton* rmFit;
 	TGTextButton* exportCal;
@@ -322,6 +330,7 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	numFits=NULL;
 	statesSet=false;
 	numAssigned=NULL;
+	quickFitFirstTime = false;
 
 	tempFits = new FitData[5];
 
@@ -378,11 +387,15 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	//button that gets the fit data from the fit panel
 	getFit = new TGTextButton(sideBarFrame,"Get Fit Data");
 	getFit->Connect("Clicked()","CalWindow",this,"getFitData()");
+	//button that gives you the quick fit interface
+	quickFit = new TGTextButton(sideBarFrame,"Quick Fit");
+	quickFit->Connect("Clicked()","CalWindow",this,"doQuickFit()");
 	//add the sidebar buttons to the sidebar frame
 	sideBarFrame->AddFrame(orderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(numPksFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(setFunc, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(getFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(quickFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	
 	/******************************************
 	** Calibration Control
@@ -397,6 +410,8 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	tempFitBox->Resize(100,20);
 	useFit = new TGTextButton(sideBarFrame,"Use Fit");
 	useFit->Connect("Clicked()","CalWindow",this,"transferFit()");
+	useAllFits = new TGTextButton(sideBarFrame,"Use All Fits");
+	useAllFits->Connect("Clicked()","CalWindow",this,"transferAllFits()");
 	fitListBox = new TGComboBox(sideBarFrame);
 	fitListBox->AddEntry("Fits",0);
 	fitListBox->Select(0);
@@ -415,6 +430,7 @@ CalWindow::CalWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	
 	sideBarFrame->AddFrame(tempFitBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(useFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
+	sideBarFrame->AddFrame(useAllFits, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(fitListBox, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(rmFit, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
 	sideBarFrame->AddFrame(calOrderFrame, new TGLayoutHints(kLHintsExpandX,2,2,2,2));
@@ -1482,6 +1498,151 @@ void CalWindow::getFitData()
 	
 }
 
+void CalWindow::doQuickFit()
+{
+	if(!checkUpToStates())
+	{return;}
+	//get the polynomial order
+	currBGOrder = bgPolOrderGetter->GetIntNumber();
+	numPeaks = numPeaksGetter->GetIntNumber();
+	//calculate the indices into the grand array of functions
+	int bgIndex = currBGOrder+1;
+	int peakIndex = numPeaks-1;
+	//set the fit panel fit function while we are at it for the heck of it
+	fitDiag->SetFunction(peakFitFormulas[peakIndex][bgIndex]);
+	if(!quickFitFirstTime)
+	{
+		// tell the user what they need to do
+		logStrm<<"\n    You need to click at the one bound of the fit region";
+		pushToLog();
+		logStrm<<"    Then the center of each peak in the region";
+		pushToLog();
+		logStrm<<"    (one center per peak in the num peaks number getter)";
+		pushToLog();
+		logStrm<<"    Finally you double click at the other bound of the fit region";
+		pushToLog();
+		quickFitFirstTime=true;
+	}
+	//whiteBoard->GetCanvas()->SetCrosshair(1);
+	TGraph* fitData = (TGraph*)whiteBoard->WaitPrimitive("Graph","PolyLine");
+	int numGraphPoints = fitData->GetN();
+	if( numGraphPoints < (numPeaks+2) )
+	{
+		logStrm<<"Not enough points, you need to give numPeaks+2 ("<<numPeaks+2<<") Points, see instructions above\n";
+		logStrm<<"Click the button to try again";
+		pushToLog();
+		delete fitData;
+		return;
+	}
+	else if(numGraphPoints > (numPeaks+2) )
+	{
+		logStrm<<"Too many points, you need to give numPeaks+2 ("<<numPeaks+2<<") Points, see instructions above\n";
+		logStrm<<"Click the button to try again";
+		pushToLog();
+		delete fitData;
+		return;
+	}
+	double* positions = fitData->GetX();
+	//transfer the quickFitPos array so we can sort it
+	for(int i=0; i<numGraphPoints; ++i)
+	{
+		quickFitPos[i]=positions[i];
+	}
+	//now cleanup the fit data
+	delete fitData;
+	//sort the positions
+	sortDoubles(quickFitPos,numGraphPoints);
+	//fill the tempHistVals array with the histogram values at the clicked positions
+	for(int i=0; i<numGraphPoints; ++i)
+	{
+		int binNum = cutSpec->GetXaxis()->FindBin(quickFitPos[i]);
+		tempHistVals[i]=cutSpec->GetBinContent(binNum);
+	}
+	//calculate the estimated params using the array values
+	int last = numGraphPoints-1;
+	//first the straight line background
+	double slope = ( (tempHistVals[last]-tempHistVals[0])/(quickFitPos[last]-quickFitPos[0]) );
+	double intercept = ( tempHistVals[0]-(quickFitPos[0]*slope) );
+	//or constant background
+	double avgOffset = ( (tempHistVals[last]+tempHistVals[0])/2 );
+	//now load the tempParams array with height, position, and width of every peak 
+	for(int i=0; i<numPeaks; ++i)
+	{
+		double height;
+		double position;
+		double width;
+		//first calculate the height guess for peak i, this is dependent on the background option
+		switch(currBGOrder)
+		{
+		case -1:
+			//no background
+			height = tempHistVals[i+1];
+			break;
+		case 0:
+			//constant background
+			height = ( tempHistVals[i+1]-avgOffset );
+			break;
+		default:
+			//linear or quadratic background (since I do not estimate the quadratic term)
+			height = ( tempHistVals[i+1]- ( slope*quickFitPos[i+1]+intercept ) );
+			break;
+		}
+		//guess the width by looking at the difference between the current peak and the points next to it
+		double diff1 = ((quickFitPos[i+2]-quickFitPos[i+1])/2);
+		double diff2 = ((quickFitPos[i+1]-quickFitPos[i+0])/2);
+		double diff = (diff1<diff2)?diff1:diff2;
+		width = diff/4.5; //the divider was pulled from the air testing shows it seems to work all right
+		//guess the position via what the user entered
+		position=quickFitPos[i+1];
+		//load the temp param array
+		tempParams[3*i] = height;
+		tempParams[3*i+1] = position;
+		tempParams[3*i+2] = width;
+	}
+	//temp params will always have space for quadratic background so simply put all terms
+	if(currBGOrder==0)
+	{
+		tempParams[3*numPeaks]=avgOffset;
+	}
+	else
+	{
+		tempParams[3*numPeaks]=intercept;
+	}
+	tempParams[3*numPeaks+1]=slope;
+	tempParams[3*numPeaks+2]=0.0;
+	//whiteBoard->GetCanvas()->SetCrosshair(0);
+	//make the TF1 to fit
+	TF1* tempQuickFit = new TF1("tempQuickFit",peakFitFormulas[peakIndex][bgIndex],quickFitPos[0],quickFitPos[last]);
+	tempQuickFit->SetParameters(tempParams);
+	//fit the histogram
+	cutSpec->Fit(tempQuickFit,"RI");
+	whiteBoard->Update();
+	//dump the peak centroids into the temporary fit holding area
+	//as if the get fit data button was clicked when using the fit panel
+	//read the fit data
+	double* values = tempQuickFit->GetParameters();
+	//clear the temp fit combobox
+	tempFitBox->RemoveEntries(1,numStates+10);
+	for(int i=0; i<numPeaks; ++i)
+	{
+		tempFits[i].height = values[3*i+0];
+		tempFits[i].centroid = values[3*i+1];
+		tempFits[i].width = values[3*i+2];
+		tempFits[i].isAssign = false;
+		ostringstream namer;
+		namer<<"Cent: "<<tempFits[i].centroid;
+		tempFitBox->AddEntry(namer.str().c_str(),i+1);
+	}
+	//cleanup
+	delete tempQuickFit;
+	//make the fit dialog point at the histogram again
+	if(fitDiag!=NULL)
+	{
+		fitDiag->SetFitObject(dynamic_cast<TVirtualPad*>(whiteBoard->GetCanvas()), dynamic_cast<TObject*>(cutSpec), kButton1Down);
+		setFitFunc();	
+	}
+}
+
 void CalWindow::transferFit()
 {
 	if(!checkUpToStates())
@@ -1503,6 +1664,31 @@ void CalWindow::transferFit()
 	tempFitBox->RemoveEntry(id);
 	fitList[dispNum][numFits[dispNum]] = tempFits[id-1];
 	++numFits[dispNum];
+	updateComboBoxes();
+}
+
+void CalWindow::transferAllFits()
+{
+	if(!checkUpToStates())
+	{return;}
+	if((numFits[dispNum]+numPeaks)>=numStates)
+	{
+		cout<<"Too Many fits cannot add more until one is removed"<<endl;
+		return;
+	}
+	if(numPeaks==0)
+	{
+		logStrm<<"No peaks to transfer";
+		pushToLog();
+		return;
+	}
+	for(int i=0; i<numPeaks; ++i)
+	{
+		fitList[dispNum][numFits[dispNum]] = tempFits[i];
+		++numFits[dispNum];
+	}
+	tempFitBox->Select(0);
+	tempFitBox->RemoveEntries(1,numStates+10);
 	updateComboBoxes();
 }
 
