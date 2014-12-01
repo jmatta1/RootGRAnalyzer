@@ -394,7 +394,7 @@ MainWindow::MainWindow(const TGWindow* parent, UInt_t width, UInt_t height)
 	makeEnCorSpecsBut = new TGTextButton(sideBarFrame,"Make En Corr Specs");
 	makeEnCorSpecsBut->Connect("Clicked()","MainWindow",this,"makeEnCorrSpecs()");
 	//show energy cal button
-	showEnCorBut = new TGTextButton(sideBarFrame,"Show Energy Cal");
+	showEnCorBut = new TGTextButton(sideBarFrame,"Show Energy Corr");
 	showEnCorBut->Connect("Clicked()","MainWindow",this,"showEnCorrCal()");
 	
 	
