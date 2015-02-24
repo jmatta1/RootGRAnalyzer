@@ -1122,22 +1122,28 @@ void MainWindow::getBGCuts()
 		//get the base cut
 		TCut* baseCut = testBaseCut(runs[i].runNumber);
 		//get the tree from the main file
-		TTree* tree = testTree(runs[i].runNumber);
+		TTree* tree = testFirstOrderShapeTree(runs[i].runNumber);
 		if(pidCut == NULL || baseCut == NULL || tree == NULL)
-		{	return;		}
+		{
+		    logStrm<<"You must perform the shape correction before doing this.";
+        	pushToLog();
+		    return;
+		}
 		//build the draw command
 		string histName = makeBGSpecName(runs[i].runNumber);
 		ostringstream cmdBuilder;
 		cmdBuilder<<"Yfp>>"<<histName<<"(200,-50,50)";
 		string drawCommand = cmdBuilder.str();
-
+        ostringstream cutBuilder;
+        cutBuilder<<"("<<baseCut->GetTitle()<<")&&(Thcorr>=-0.9)&&(Thcorr<=0.9)";
+        string cutStr = cutBuilder.str();
 		//draw the spectrum
 		logStrm<<"Loading run "<<runs[i].runNumber<<"  "<<(i+1)<<" / "<<numRuns;
 		pushToLog();
-		tree->Draw(drawCommand.c_str(), (*baseCut));
+		tree->Draw(drawCommand.c_str(), cutStr.c_str());
 		TH1F* tempH1 = reinterpret_cast<TH1F*>(gDirectory->Get(histName.c_str()));
 		ostringstream titleBuilder;
-		titleBuilder<<"run "<<runs[i].runNumber<<" Yfp( "<<baseCut->GetTitle()<<" )";
+		titleBuilder<<"run "<<runs[i].runNumber<<" Yfp( "<<cutStr<<" )";
 		tempH1->SetTitle(titleBuilder.str().c_str());
 		TPad* pd = (TPad*)whiteBoard->cd(1);
 		whiteBoard->SetLogy(1);
